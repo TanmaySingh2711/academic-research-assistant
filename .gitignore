@@ -1,0 +1,22 @@
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Secrets / local env
+.env
+
+# Generated FAISS index (keep the folder)
+index/*
+!index/.gitkeep
+
+# Uploaded PDFs (keep the folder)
+data/*
+!data/.gitkeep
+
+# OS / editor files
+.DS_Store
+.vscode/
+.idea/
