@@ -1,7 +1,7 @@
 """Quick check that all Objective 1 dependencies are installed and Ollama is reachable."""
 
 import importlib
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
 
 # import name -> pip package name
 LIBRARIES = {

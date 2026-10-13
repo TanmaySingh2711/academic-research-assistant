@@ -1,0 +1,20 @@
+# Settings for the lint and type-check tools (used locally and in CI).
+# All tool caches go into one folder: .cache/
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+cache-dir = ".cache/ruff"
+extend-exclude = ["venv", ".cache"]
+
+[tool.ruff.lint]
+# pycodestyle errors and warnings, pyflakes (real bugs like unused names), import sorting
+select = ["E", "W", "F", "I"]
+
+[tool.mypy]
+python_version = "3.12"
+# Anchored to the project folder (where this file is), so the cache never lands in a subfolder
+cache_dir = "$MYPY_CONFIG_FILE_DIR/.cache/mypy"
+exclude = ["^venv/", "^\\.cache/"]
+# faiss and pdfplumber ship without type information
+ignore_missing_imports = true

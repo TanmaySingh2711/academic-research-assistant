@@ -1,0 +1,4 @@
+# Tools for development and CI only (the app does not need these)
+-r requirements.txt
+mypy==2.4.0
+ruff==0.17.0

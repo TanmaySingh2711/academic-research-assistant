@@ -1,0 +1,3 @@
+# Keep the right line endings for the setup scripts on every OS
+*.sh  text eol=lf
+*.bat text eol=crlf

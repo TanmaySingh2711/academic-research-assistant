@@ -1,9 +1,12 @@
 # Virtual environment
 venv/
 
-# Python cache
+# Python cache (normally never created: see scripts/configure_venv.py)
 __pycache__/
 *.pyc
+
+# All tool caches (ruff, mypy) go to one folder
+.cache/
 
 # Secrets / local env
 .env

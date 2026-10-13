@@ -1,0 +1,50 @@
+name: Set up Ollama
+description: Install Ollama, start the server, and optionally pull llama3.2:3b
+
+inputs:
+  pull-model:
+    description: Pull the llama3.2:3b model (about 2 GB)
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Ollama (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        curl -fsSL https://ollama.com/install.sh | sh
+        # The installer normally starts a service; start the server ourselves if it did not
+        curl -sf http://127.0.0.1:11434/api/version || (nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &)
+
+    - name: Install Ollama (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install ollama
+        nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+
+    - name: Install Ollama (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $dir = Join-Path $env:RUNNER_TEMP "ollama"
+        Invoke-WebRequest https://ollama.com/download/ollama-windows-amd64.zip -OutFile "$dir.zip"
+        Expand-Archive "$dir.zip" -DestinationPath $dir
+        Add-Content $env:GITHUB_PATH $dir
+        Start-Process -FilePath (Join-Path $dir "ollama.exe") -ArgumentList "serve" -WindowStyle Hidden
+
+    - name: Wait for the Ollama server
+      shell: bash
+      run: |
+        for i in $(seq 1 60); do
+          curl -sf http://127.0.0.1:11434/api/version && exit 0
+          sleep 1
+        done
+        echo "Ollama server did not start"
+        exit 1
+
+    - name: Pull llama3.2:3b
+      if: inputs.pull-model == 'true'
+      shell: bash
+      run: ollama pull llama3.2:3b
