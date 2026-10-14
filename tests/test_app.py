@@ -59,7 +59,8 @@ def ask(label, payload, expected=200):
 
 # ---------- Upload and build ----------
 
-show("GET /status (no index yet)", client.get("/status"), 200)
+status = show("GET /status (no index yet)", client.get("/status"), 200)
+check(status.get("papers_to_index") == sorted(DOCUMENTS), "before Build index, every paper is waiting to be indexed")
 
 response = client.post("/upload", content_type="multipart/form-data", data={
     "files": [
@@ -81,6 +82,7 @@ check(not body.get("saved") and [s["name"] for s in body.get("skipped", [])] == 
 show("POST /process", client.post("/process"), 200)
 status = show("GET /status (after process)", client.get("/status"), 200)
 check(status.get("indexed_papers") == sorted(DOCUMENTS), "all 3 sample papers are indexed")
+check(status.get("papers_to_index") == [], "after Build index, nothing is waiting (Build index is greyed out)")
 
 # ---------- Asking (every chat is about one paper) ----------
 

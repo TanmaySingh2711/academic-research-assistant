@@ -3,6 +3,7 @@
 import socket
 import threading
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -108,6 +109,20 @@ def indexed_papers(current):
 def pdfs_in_data():
     folder = data_dir()
     return sorted(p.name for p in folder.glob("*") if p.suffix.lower() == ".pdf") if folder.exists() else []
+
+
+def papers_to_index(current):
+    """PDFs in data/ that are not in the index yet, or that changed after the index was built
+    (for example uploaded again with the same name). Build index is only useful for these."""
+    indexed = set(indexed_papers(current))
+    built_at = current[2].get("built_at") if current else None
+    built = datetime.fromisoformat(built_at) if built_at else None
+    waiting = []
+    for name in pdfs_in_data():
+        changed = built is not None and datetime.fromtimestamp((data_dir() / name).stat().st_mtime) > built
+        if name not in indexed or changed:
+            waiting.append(name)
+    return waiting
 
 
 # ---------- Pages ----------
@@ -342,6 +357,7 @@ def status():
         "built_at": current[2].get("built_at") if current else None,
         "pdfs_in_data": pdfs_in_data(),
         "indexed_papers": indexed_papers(current),
+        "papers_to_index": papers_to_index(current),
         "ollama_running": ollama_running,
         "boot_id": BOOT_ID,
     })

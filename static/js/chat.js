@@ -60,6 +60,7 @@ async function refreshStatus() {
     if (state.status && state.selectedPaper && !inData(state.selectedPaper)) state.selectedPaper = null;
     renderPapers();
     renderNotice();
+    updateBuildButton();
     renderEmptyState();
     updateComposer();
 }
@@ -287,30 +288,23 @@ function renderEmptyState() {
     $("build-prompt").hidden = !paper || indexed;
     $("build-prompt-button").disabled = state.building;
     $("empty-scope").textContent = !paper
-        ? "Upload a research paper, or pick one to start a chat."
+        ? "Upload a research paper, or pick one in the sidebar to start a chat."
         : indexed
             ? `Asking about ${paperName(paper)}. Type your own question, or pick one below.`
             : `${paperName(paper)} is not searchable yet. Build the index to ask about it.`;
-    if (!paper) renderPaperPicks();
     renderSuggestions(indexed ? paper : null);
 }
 
-// On the default page: one button per paper, to pick it
-function renderPaperPicks() {
-    const papers = state.status ? state.status.pdfs_in_data : [];
-    $("paper-picks").hidden = !papers.length;
-    $("paper-pick-list").replaceChildren(...papers.map((paper) => {
-        const kind = isIndexed(paper) ? "indexed" : "new";
-        const button = el("button", "paper-chip");
-        button.type = "button";
-        button.title = paper;
-        button.append(icon("file", 15), el("span", "", paperName(paper)));
-        if (kind === "new") button.append(el("span", "badge badge-warn", "New"));
-        button.addEventListener("click", () => {
-            selectPaper(paper, kind, state.chats.filter((chat) => chat.paper === paper).length);
-        });
-        return button;
-    }));
+// Build index only does something when a paper is new or changed since the last build,
+// so otherwise the button is greyed out
+function updateBuildButton() {
+    const s = state.status;
+    const waiting = s ? s.papers_to_index.length : 0;
+    const button = $("build-button");
+    button.disabled = state.building || waiting === 0;
+    button.title = state.building ? "Building the index..."
+        : waiting ? `Index ${waiting} new or changed paper${waiting === 1 ? "" : "s"}`
+            : s && s.pdfs_in_data.length ? "All papers are already indexed" : "Upload a PDF first";
 }
 
 // ---------- Suggested questions for the selected paper ----------
@@ -788,7 +782,7 @@ async function uploadFiles(fileList) {
 // Show or hide the "working on the index" line in the sidebar
 function setBuilding(on, text = "Building the index, about 15 seconds...") {
     state.building = on;
-    $("build-button").disabled = on;
+    updateBuildButton();
     $("build-prompt-button").disabled = on;
     $("build-progress-text").textContent = text;
     $("build-progress").hidden = !on;
