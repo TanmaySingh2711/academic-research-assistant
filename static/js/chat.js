@@ -295,16 +295,22 @@ function renderEmptyState() {
     renderSuggestions(indexed ? paper : null);
 }
 
-// Build index only does something when a paper is new or changed since the last build,
-// so otherwise the button is greyed out
+// Build index follows the selected paper: greyed out when that paper is already indexed,
+// active when it is new (or changed since the last build). With no paper selected (the
+// default page) it is active when any paper is waiting. Building always indexes every
+// paper in data/, so the other papers are simply indexed again too.
 function updateBuildButton() {
     const s = state.status;
-    const waiting = s ? s.papers_to_index.length : 0;
+    const waiting = s ? s.papers_to_index : [];
+    const paper = currentPaper();
+    const needed = paper ? waiting.includes(paper) : waiting.length > 0;
     const button = $("build-button");
-    button.disabled = state.building || waiting === 0;
+    button.disabled = state.building || !needed;
     button.title = state.building ? "Building the index..."
-        : waiting ? `Index ${waiting} new or changed paper${waiting === 1 ? "" : "s"}`
-            : s && s.pdfs_in_data.length ? "All papers are already indexed" : "Upload a PDF first";
+        : needed
+            ? paper ? `Index ${paperName(paper)}` : `Index ${waiting.length} new or changed paper${waiting.length === 1 ? "" : "s"}`
+            : paper ? "This paper is already indexed"
+                : s && s.pdfs_in_data.length ? "All papers are already indexed" : "Upload a PDF first";
 }
 
 // ---------- Suggested questions for the selected paper ----------
@@ -404,6 +410,7 @@ function startNewChat(paper = null, { push = true } = {}) {
     $("thread").replaceChildren();
     if (push) history.pushState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
     renderPapers();
+    updateBuildButton();
     renderEmptyState();
     markActiveChat();
     updateComposer();
@@ -430,6 +437,7 @@ async function openChat(chatId, { push = true } = {}) {
     }
     if (push) history.pushState({}, "", `/chat?chat=${chat.id}`);
     renderPapers();
+    updateBuildButton();
     renderEmptyState();
     markActiveChat();
     updateComposer();
