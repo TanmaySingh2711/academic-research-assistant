@@ -133,14 +133,31 @@ show("GET /api/chats/<bad id>", client.get("/api/chats/..%2Fapp"), 404)
 messages = client.get(f"/api/chats/{chat_1}").get_json().get("messages", [])
 check(len(messages) == 4, "chat 1 still has 2 questions and 2 answers")
 
-# ---------- Delete a paper: its PDF and chats go, the index is rebuilt ----------
+# ---------- Delete a paper: only that paper goes, nothing else is indexed ----------
+
+# A new paper that is not indexed yet must stay that way: only Build index indexes papers
+NEW = "sample_new_paper.pdf"
+make_pdf(root / "data" / NEW, next(iter(DOCUMENTS.values())))
+before = client.get("/status").get_json()
+check(before["papers_to_index"] == [NEW], "the new paper is waiting to be indexed")
 
 body = show(f"DELETE /api/papers/{PAPER}", client.delete(f"/api/papers/{PAPER}"), 200)
 check(body.get("chats_deleted") == 1, "the paper's remaining chat was deleted with it")
 check(not (root / "data" / PAPER).exists(), "the PDF file is gone")
 status = client.get("/status").get_json()
-check(PAPER not in status["indexed_papers"] and len(status["indexed_papers"]) == 2, "the index was rebuilt without it")
+check(PAPER not in status["indexed_papers"] and len(status["indexed_papers"]) == 2,
+      "its chunks are removed from the index, the other 2 papers stay")
+check(status["papers_to_index"] == [NEW] and NEW not in status["indexed_papers"],
+      "the new paper was not indexed by the delete")
+check(status["built_at"] == before["built_at"], "the index was not built again")
 check(all(chat["paper"] != PAPER for chat in client.get("/api/chats").get_json()), "no chats about the paper are left")
+
+after = ask("POST /ask (other paper still works after the delete)",
+            {"question": "What is load testing?", "paper": OTHER})
+check(all(s["source"] == OTHER for s in after.get("sources", [])), "search still finds the right chunks")
+
+show(f"DELETE /api/papers/{NEW} (not indexed)", client.delete(f"/api/papers/{NEW}"), 200)
+check(client.get("/status").get_json()["papers_to_index"] == [], "a paper that was never indexed can be deleted too")
 show("DELETE /api/papers/<not there>", client.delete("/api/papers/missing.pdf"), 404)
 show("DELETE /api/papers/<unsafe name>", client.delete("/api/papers/..%2Fapp.py"), 404)
 

@@ -114,6 +114,9 @@ Add-Type -Namespace Win32 -Name Window -MemberDefinition @"
 [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
 [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
 [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+[DllImport("kernel32.dll")] public static extern IntPtr GetStdHandle(int which);
+[DllImport("kernel32.dll")] public static extern bool GetConsoleMode(IntPtr handle, out uint mode);
+[DllImport("kernel32.dll")] public static extern bool SetConsoleMode(IntPtr handle, uint mode);
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
 [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 [StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
@@ -149,6 +152,24 @@ function Move-WindowToCenter {
 }
 
 Move-WindowToCenter
+
+# Turn off QuickEdit for this window only. With QuickEdit on, a click into the window starts
+# a text selection: the first Esc only ends that selection (so Esc had to be pressed twice)
+# and the server is paused while the selection is open.
+function Disable-QuickEdit {
+    try {
+        $stdin = [Win32.Window]::GetStdHandle(-10)  # -10 = STD_INPUT_HANDLE
+        $mode = [uint32]0
+        if ([Win32.Window]::GetConsoleMode($stdin, [ref]$mode)) {
+            # 0x40 = ENABLE_QUICK_EDIT_MODE, 0x80 = ENABLE_EXTENDED_FLAGS (needed to change it)
+            [void][Win32.Window]::SetConsoleMode($stdin, ($mode -band (-bnot [uint32]0x40)) -bor 0x80)
+        }
+    } catch {
+        # Not a real console window: nothing to change
+    }
+}
+
+Disable-QuickEdit
 
 # ---------- 5. Wait: open the browser when ready, warm up the LLM, stop on Esc ----------
 [Console]::TreatControlCAsInput = $true  # Ctrl+C is handled like Esc, so nothing is left running

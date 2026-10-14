@@ -37,8 +37,27 @@ def build_index(vectors):
     return index
 
 
-def save_store(index, chunks, index_dir="index", model_name="all-MiniLM-L6-v2", chunk_size=100, overlap=20):
-    """Save the index, the chunks (same order as the vectors) and build info to index_dir."""
+def remove_paper(index, chunks, source):
+    """Return a new (index, chunks) without one paper. Nothing is embedded again, so it is fast.
+
+    A Flat index keeps the vectors as they are, so they can be read back and copied,
+    leaving out the rows of that paper. Row i still matches chunks[i] afterwards.
+    """
+    keep = [row for row, chunk in enumerate(chunks) if chunk["source"] != source]
+    vectors = index.reconstruct_n(0, index.ntotal)  # all stored vectors (already normalized)
+    new_index = faiss.IndexFlatIP(index.d)
+    if keep:
+        new_index.add(vectors[keep])
+    return new_index, [chunks[row] for row in keep]
+
+
+def save_store(index, chunks, index_dir="index", model_name="all-MiniLM-L6-v2", chunk_size=100, overlap=20,
+               built_at=None):
+    """Save the index, the chunks (same order as the vectors) and build info to index_dir.
+
+    built_at: when the index was built (default: now). Removing a paper keeps the old time,
+    because the other papers were not indexed again.
+    """
     index_dir = Path(index_dir)
     index_dir.mkdir(exist_ok=True)
 
@@ -54,7 +73,7 @@ def save_store(index, chunks, index_dir="index", model_name="all-MiniLM-L6-v2", 
         "num_chunks": len(chunks),
         "chunk_size": chunk_size,
         "overlap": overlap,
-        "built_at": datetime.now().isoformat(timespec="seconds"),
+        "built_at": built_at or datetime.now().isoformat(timespec="seconds"),
     }
     with open(index_dir / INFO_FILE, "w", encoding="utf-8") as f:
         json.dump(info, f, indent=2)

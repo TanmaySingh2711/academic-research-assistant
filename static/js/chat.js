@@ -915,6 +915,8 @@ function startRename(chat, item) {
     input.addEventListener("blur", () => finish(true));
 }
 
+// Like ChatGPT: the chat disappears at once and the server deletes it in the background.
+// If the server cannot delete it, the list is loaded again and an error is shown.
 async function deleteChat(chat) {
     const ok = await confirmDialog({
         title: "Delete this chat?",
@@ -922,18 +924,21 @@ async function deleteChat(chat) {
         confirmLabel: "Delete chat",
     });
     if (!ok) return;
+
+    state.chats = state.chats.filter((c) => c.id !== chat.id);
+    if (state.chatId === chat.id) startNewChat(chat.paper);
+    else renderPapers();
+
     try {
         await api(`/api/chats/${encodeURIComponent(chat.id)}`, { method: "DELETE" });
-        App.toast("Chat deleted.");
     } catch (err) {
-        App.toast(err.message, "error");
-        return;
+        App.toast(`Could not delete the chat: ${err.message}`, "error");
+        await loadChats();
     }
-    if (state.chatId === chat.id) startNewChat(chat.paper);
-    await loadChats();
 }
 
-// Deletes the PDF and all its chats on the server, which then rebuilds the index without it
+// Deletes only this paper: its PDF, its chats and its chunks in the index. Other papers are
+// not indexed again. Like a chat, it disappears from the page at once.
 async function deletePaper(paper) {
     if (state.building || state.busy) {
         App.toast("Please wait until the current task is finished.", "error");
@@ -942,29 +947,39 @@ async function deletePaper(paper) {
     const n = state.chats.filter((chat) => chat.paper === paper).length;
     const ok = await confirmDialog({
         title: "Delete this paper?",
-        message: `${paperName(paper)} and its ${n} chat${n === 1 ? "" : "s"} will be deleted, `
-            + "and the index is rebuilt without it. This cannot be undone.",
+        message: `${paperName(paper)} and its ${n} chat${n === 1 ? "" : "s"} will be deleted. This cannot be undone.`,
         confirmLabel: "Delete paper",
     });
     if (!ok) return;
 
+    // Remove it from the page right away
     const wasOpen = currentPaper() === paper;
-    setBuilding(true, "Deleting the paper and updating the index...");
-    try {
-        const data = await api(`/api/papers/${encodeURIComponent(paper)}`, { method: "DELETE" });
-        App.toast(data.message);
-        suggestionCache.delete(paper);
-        state.expanded.delete(paper);
-        saveExpanded();
-        state.newUploads = state.newUploads.filter((p) => p !== paper);
-        await refreshStatus();
-        await loadChats();
-        if (wasOpen) startNewChat(null);
-    } catch (err) {
-        App.toast(err.message, "error");
-    } finally {
-        setBuilding(false);
+    const without = (list) => list.filter((p) => p !== paper);
+    state.chats = state.chats.filter((chat) => chat.paper !== paper);
+    if (state.status) {
+        state.status = {
+            ...state.status,
+            pdfs_in_data: without(state.status.pdfs_in_data),
+            indexed_papers: without(state.status.indexed_papers),
+            papers_to_index: without(state.status.papers_to_index),
+        };
     }
+    suggestionCache.delete(paper);
+    state.expanded.delete(paper);
+    saveExpanded();
+    state.newUploads = without(state.newUploads);
+    if (wasOpen) startNewChat(null);
+    else renderPapers();
+    updateBuildButton();
+
+    try {
+        await api(`/api/papers/${encodeURIComponent(paper)}`, { method: "DELETE" });
+    } catch (err) {
+        App.toast(`Could not delete the paper: ${err.message}`, "error");
+    }
+    // Take the real state from the server (it puts the paper back if the delete failed)
+    await refreshStatus();
+    await loadChats();
 }
 
 document.addEventListener("mousedown", (event) => {

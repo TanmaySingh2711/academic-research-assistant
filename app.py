@@ -16,7 +16,7 @@ from src.ingest import run_ingestion
 from src.rag_pipeline import answer_question
 from src.retriever import check_model_matches
 from src.suggestions import SUGGESTIONS_FILE, get_suggestions
-from src.vector_store import CHUNKS_FILE, INDEX_FILE, INFO_FILE, load_store
+from src.vector_store import CHUNKS_FILE, INDEX_FILE, INFO_FILE, load_store, remove_paper, save_store
 
 BASE_DIR = Path(__file__).parent
 ALLOWED_K = (1, 3, 5)
@@ -203,7 +203,11 @@ def process():
 
 @app.delete("/api/papers/<name>")
 def delete_paper(name):
-    """Delete a paper: its PDF, all its chats, and rebuild the index without it."""
+    """Delete a paper: its PDF, all its chats, and its chunks in the index. Nothing else.
+
+    The other papers are not indexed again (a new paper stays "not indexed" until you click
+    Build index), so this takes only a moment.
+    """
     path = data_dir() / name
     # Only plain file names of PDFs in data/ (no paths like "../app.py")
     if name != secure_filename(name) or not name.lower().endswith(".pdf") or not path.is_file():
@@ -212,20 +216,20 @@ def delete_paper(name):
     with process_lock:
         path.unlink()
         chats_deleted = delete_chats_for_paper(chats_dir(), name)
-        summary = None
-        if pdfs_in_data():
-            try:
-                summary = run_ingestion(data_dir(), index_dir())
+        current = store
+        if current is not None and name in indexed_papers(current):
+            index, chunks, info = current
+            new_index, new_chunks = remove_paper(index, chunks, name)
+            if new_chunks:
+                save_store(new_index, new_chunks, index_dir(), model_name=info["model_name"],
+                           chunk_size=info["chunk_size"], overlap=info["overlap"], built_at=info.get("built_at"))
                 load_index_into_memory()
-            except ValueError:  # the other PDFs have no text (for example scanned)
-                clear_index()
-        else:
-            clear_index()  # that was the last paper
+            else:
+                clear_index()  # that was the last indexed paper
 
     return jsonify({
         "deleted": name,
         "chats_deleted": chats_deleted,
-        "summary": summary,
         "message": f"Deleted the paper and {chats_deleted} chat{'' if chats_deleted == 1 else 's'}.",
     })
 

@@ -13,7 +13,7 @@ Everything runs on your own computer: no API keys, no paid services and no cloud
 - Upload PDFs with the clip button or by dropping them on the page, then build the search index with one click
 - Every chat is about one paper, and a paper can have many chats
 - Sidebar: "All papers" holds every paper, and every paper is a dropdown with its own chats
-- Rename and delete chats, and delete papers (the paper's chats are deleted too and the index is rebuilt)
+- Rename and delete chats, and delete papers (the paper's chats and chunks are removed at once; other papers are not indexed again, only Build index does that)
 - Suggested questions for each paper: the local model reads the start of the paper and writes a few questions about it
 - Sources for every answer: paper, page and similarity score; click a citation number to open the exact chunk text
 - Chat history saved on your computer and listed by paper in the assistant's sidebar
@@ -154,7 +154,7 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 
 ## How to run
 
-**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://localhost:5000 when the server is ready (about 3 seconds), and **Esc** stops the server and closes the window. If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the embedding model and `llama3.2:3b` load in the background, so the first answer is fast too.
+**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://localhost:5000 when the server is ready (about 3 seconds), and one press of **Esc** stops the server and closes the window (QuickEdit is turned off for this window, so clicking into it does not pause the server). If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the embedding model and `llama3.2:3b` load in the background, so the first answer is fast too.
 
 **Any OS, from a terminal:**
 
@@ -257,7 +257,6 @@ Test set: 3 research papers (27 pages, 302 chunks). Everything ran on a CPU (no 
 - **Neighbouring chunks can both be retrieved.** Because of the 20-word overlap, two results can share part of their text.
 - **Local, single-user app.** It uses Flask's development server on localhost (127.0.0.1 and ::1), with no login. It is not meant to be put on the internet.
 - **Upload limit of 25 MB per request** (all files in one upload together).
-- **Deleting a paper rebuilds the whole index** (about 15 seconds for a few papers), because the simple Flat index is rebuilt from the remaining PDFs. Its chats are deleted too.
 - **File names change on upload.** Spaces and special characters become underscores (`secure_filename`).
 
 ## Possible improvements
