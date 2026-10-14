@@ -658,48 +658,119 @@
     height: 12px;
 }
 
-.setup-steps {
+/* ---------- Default page: upload a paper, or pick one ---------- */
+
+.start-panel {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 22px;
     width: 100%;
-    text-align: left;
 }
 
-.setup-steps[hidden] {
+.start-panel[hidden],
+.paper-picks[hidden],
+.build-prompt[hidden] {
     display: none;
 }
 
-.setup-step {
+/* Big dashed card: click to choose PDFs (dropping files anywhere on the page also works) */
+.upload-card {
     display: flex;
-    gap: 14px;
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 30px 20px;
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
     background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.25s, background 0.25s, transform 0.25s var(--ease);
     animation: fadeUp 0.5s var(--ease) both;
 }
 
-.setup-step:nth-child(2) { animation-delay: 0.08s; }
-.setup-step:nth-child(3) { animation-delay: 0.16s; }
-
-.setup-step p {
-    margin: 2px 0 0;
-    color: var(--text-muted);
-    font-size: 0.88rem;
+.upload-card:hover {
+    border-color: var(--cyan);
+    background: var(--cyan-soft);
+    transform: translateY(-2px);
 }
 
-.step-dot {
-    flex: none;
+.upload-card:hover .upload-card-icon {
+    transform: translateY(-3px);
+}
+
+.upload-card-icon {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: var(--cyan);
-    color: #031216;
-    font-weight: 800;
-    font-size: 0.85rem;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 6px;
+    border: 1px solid var(--cyan-line);
+    border-radius: 14px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    transition: transform 0.3s var(--ease);
+}
+
+.upload-card strong {
+    font-size: 1.02rem;
+}
+
+.upload-card span:last-child {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+/* Buttons with the paper names, to pick one */
+.paper-pick-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.paper-picks .suggest-label {
+    text-align: center;
+}
+
+.paper-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s var(--ease);
+    animation: fadeUp 0.5s var(--ease) both;
+}
+
+.paper-chip span:first-of-type {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.paper-chip .icon {
+    color: var(--cyan);
+}
+
+.paper-chip:hover {
+    border-color: var(--cyan-line);
+    background: var(--surface-2);
+    transform: translateY(-1px);
+}
+
+/* A paper that is not in the index yet: one clear button */
+.build-prompt {
+    animation: fadeUp 0.4s var(--ease) both;
 }
 
 /* ---------- Messages ---------- */

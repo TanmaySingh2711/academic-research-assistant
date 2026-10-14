@@ -9,6 +9,7 @@ const { el, icon, api, paperName } = App;
 // ("v2": the earlier version opened papers by itself, so its saved state is not reused)
 const EXPANDED_KEY = "research-assistant.open-papers-v2";
 const ROOT_KEY = "__all__"; // the "All papers" dropdown that holds every paper
+const BOOT_KEY = "research-assistant.server-boot"; // see isFreshStart()
 
 const state = {
     status: null, // last answer of /status (null = server offline)
@@ -48,24 +49,19 @@ function expandPaper(paper) {
 }
 
 const isIndexed = (paper) => Boolean(state.status && state.status.indexed_papers.includes(paper));
-const firstIndexedPaper = () => (state.status && state.status.indexed_papers[0]) || null;
+const inData = (paper) => Boolean(paper && state.status && state.status.pdfs_in_data.includes(paper));
 const currentPaper = () => (state.chatId ? state.chatPaper : state.selectedPaper);
 
-// ---------- Status, papers, paper selector and notices ----------
+// ---------- Status, papers and notices ----------
 
 async function refreshStatus() {
     state.status = await App.getStatus(true);
-    // A new chat always needs a paper: keep the chosen one, or take the first indexed paper
-    if (!isIndexed(state.selectedPaper)) state.selectedPaper = firstIndexedPaper();
+    // A paper that was deleted cannot stay selected
+    if (state.status && state.selectedPaper && !inData(state.selectedPaper)) state.selectedPaper = null;
     renderPapers();
     renderNotice();
     renderEmptyState();
     updateComposer();
-}
-
-function unindexedPapers() {
-    const s = state.status;
-    return s ? s.pdfs_in_data.filter((paper) => !s.indexed_papers.includes(paper)) : [];
 }
 
 // ---------- Sidebar: every paper with its chats in a dropdown ----------
@@ -142,6 +138,7 @@ function moreButton(label, items) {
 function paperNode({ key, kind }, i) {
     const chats = state.chats.filter((chat) => chat.paper === key);
     const canChat = kind === "indexed";
+    const canPick = kind !== "removed"; // a new paper can be picked too: its page offers Build index
     const name = paperName(key);
     const open = state.expanded.has(key);
 
@@ -165,7 +162,7 @@ function paperNode({ key, kind }, i) {
     // The paper itself: click it to select it, like a project in ChatGPT, Claude or Gemini
     const pick = el("button", "paper-toggle paper-pick");
     pick.type = "button";
-    pick.title = canChat ? `Ask about ${name}` : key;
+    pick.title = canChat ? `Ask about ${name}` : canPick ? `${name}: open it to build the index` : key;
     const sub = kind === "new" ? "Not indexed yet"
         : kind === "removed" ? "Removed from data/"
             : `${chats.length} chat${chats.length === 1 ? "" : "s"}`;
@@ -177,8 +174,8 @@ function paperNode({ key, kind }, i) {
 
     const add = el("button", "icon-btn paper-add");
     add.type = "button";
-    add.disabled = !canChat;
-    add.title = canChat ? `New chat about ${name}` : "Build the index first to chat about this paper";
+    add.disabled = !canPick;
+    add.title = canPick ? `New chat about ${name}` : "This paper was removed";
     add.setAttribute("aria-label", add.title);
     add.append(icon("plus", 15));
     add.addEventListener("click", () => {
@@ -241,10 +238,11 @@ function toggleExpand(key, node, button) {
 }
 
 // Clicking a paper selects it: a new chat about it, with questions suggested for it.
-// If it already has chats, its dropdown opens so they are easy to find.
+// A new paper (not indexed yet) opens a page with a Build index button.
+// If the paper already has chats, its dropdown opens so they are easy to find.
 function selectPaper(key, kind, chatCount) {
-    if (kind !== "indexed") {
-        App.toast(kind === "new" ? "Build the index first to chat about this paper." : "This paper was removed.", "error");
+    if (kind === "removed") {
+        App.toast("This paper was removed.", "error");
         return;
     }
     if (chatCount) expandPaper(key);
@@ -252,13 +250,12 @@ function selectPaper(key, kind, chatCount) {
     closeSidebar();
 }
 
-// One short message above the message box, for the most important problem
+// A warning above the message box, only for real problems (server or Ollama)
 function renderNotice() {
     const box = $("notice");
     const s = state.status;
     let kind = "";
     let message = "";
-    let action = null;
 
     if (!s) {
         kind = "is-bad";
@@ -266,13 +263,6 @@ function renderNotice() {
     } else if (!s.ollama_running) {
         kind = "is-warn";
         message = "Ollama is not running. Start the Ollama app to get answers.";
-    } else if (unindexedPapers().length) {
-        const n = unindexedPapers().length;
-        message = `${n} new paper${n === 1 ? " is" : "s are"} not searchable yet.`;
-        action = ["Build index", buildIndex];
-    } else if (!s.pdfs_in_data.length) {
-        message = "Upload a PDF to get started.";
-        action = ["Upload PDF", openFilePicker];
     }
 
     if (!message) {
@@ -280,30 +270,47 @@ function renderNotice() {
         return;
     }
     box.className = `notice ${kind}`;
-    const children = [icon(kind ? "alert" : "database", 16), el("span", "", message)];
-    if (action) {
-        const button = el("button", "btn btn-primary btn-small", action[0]);
-        button.type = "button";
-        button.disabled = state.building;
-        button.addEventListener("click", action[1]);
-        children.push(button);
-    }
-    box.replaceChildren(...children);
+    box.replaceChildren(icon("alert", 16), el("span", "", message));
     box.hidden = false;
 }
 
+// The page before the first question. Three cases:
+// no paper picked (default page: upload or pick a paper), a new paper (Build index), an indexed paper (suggestions)
 function renderEmptyState() {
     const empty = state.chatId === null && $("thread").children.length === 0;
     $("empty-state").hidden = !empty;
     if (!empty) return;
 
-    const ready = Boolean(state.status && state.status.index_ready);
-    $("setup-steps").hidden = ready;
     const paper = currentPaper();
-    $("empty-scope").textContent = !ready || !paper
-        ? "Upload a paper and build the index to start."
-        : `Asking about ${paperName(paper)}. Type your own question, or pick one below.`;
-    renderSuggestions(ready ? paper : null);
+    const indexed = isIndexed(paper);
+    $("start-panel").hidden = Boolean(paper);
+    $("build-prompt").hidden = !paper || indexed;
+    $("build-prompt-button").disabled = state.building;
+    $("empty-scope").textContent = !paper
+        ? "Upload a research paper, or pick one to start a chat."
+        : indexed
+            ? `Asking about ${paperName(paper)}. Type your own question, or pick one below.`
+            : `${paperName(paper)} is not searchable yet. Build the index to ask about it.`;
+    if (!paper) renderPaperPicks();
+    renderSuggestions(indexed ? paper : null);
+}
+
+// On the default page: one button per paper, to pick it
+function renderPaperPicks() {
+    const papers = state.status ? state.status.pdfs_in_data : [];
+    $("paper-picks").hidden = !papers.length;
+    $("paper-pick-list").replaceChildren(...papers.map((paper) => {
+        const kind = isIndexed(paper) ? "indexed" : "new";
+        const button = el("button", "paper-chip");
+        button.type = "button";
+        button.title = paper;
+        button.append(icon("file", 15), el("span", "", paperName(paper)));
+        if (kind === "new") button.append(el("span", "badge badge-warn", "New"));
+        button.addEventListener("click", () => {
+            selectPaper(paper, kind, state.chats.filter((chat) => chat.paper === paper).length);
+        });
+        return button;
+    }));
 }
 
 // ---------- Suggested questions for the selected paper ----------
@@ -367,12 +374,12 @@ async function renderSuggestions(paper) {
 }
 
 function updateComposer() {
-    const ready = Boolean(state.status && state.status.index_ready);
     const paper = currentPaper();
-    $("send-button").disabled = !$("question").value.trim() || !ready || !paper || state.busy;
-    $("question").placeholder = !ready || !paper
-        ? "Upload a paper and build the index first..."
-        : "Ask about this paper...";
+    const canAsk = isIndexed(paper);
+    $("send-button").disabled = !$("question").value.trim() || !canAsk || state.busy;
+    $("question").placeholder = !paper
+        ? "Pick a paper or upload one to ask a question..."
+        : canAsk ? "Ask about this paper..." : "Build the index to ask about this paper...";
 }
 
 // ---------- Saved chats ----------
@@ -394,12 +401,12 @@ function markActiveChat() {
 
 // ---------- Opening and starting chats ----------
 
-// A new, empty chat about one paper (the first indexed paper if none is given)
+// A new, empty chat about one paper. Without a paper: the default page (upload or pick a paper).
 function startNewChat(paper = null, { push = true } = {}) {
     if (state.busy) return;
     state.chatId = null;
     state.chatPaper = null;
-    state.selectedPaper = isIndexed(paper) ? paper : isIndexed(state.selectedPaper) ? state.selectedPaper : firstIndexedPaper();
+    state.selectedPaper = inData(paper) ? paper : null;
     $("thread").replaceChildren();
     if (push) history.pushState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
     renderPapers();
@@ -440,8 +447,8 @@ async function openChat(chatId, { push = true } = {}) {
 async function ask(question) {
     question = question.trim();
     if (!question || state.busy) return;
-    if (!state.status || !state.status.index_ready || !currentPaper()) {
-        App.toast("Upload a paper and build the index first.", "error");
+    if (!isIndexed(currentPaper())) {
+        App.toast(currentPaper() ? "Build the index first to ask about this paper." : "Pick a paper first.", "error");
         return;
     }
 
@@ -767,6 +774,8 @@ async function uploadFiles(fileList) {
             App.toast(`Uploaded ${n} paper${n === 1 ? "" : "s"}. Click Build index to make ${n === 1 ? "it" : "them"} searchable.`);
         }
         await refreshStatus();
+        // One new paper: open its page right away (it shows the Build index button)
+        if (data.saved.length === 1 && state.chatId === null) startNewChat(data.saved[0]);
     } catch (err) {
         App.toast(err.message, "error");
     } finally {
@@ -780,6 +789,7 @@ async function uploadFiles(fileList) {
 function setBuilding(on, text = "Building the index, about 15 seconds...") {
     state.building = on;
     $("build-button").disabled = on;
+    $("build-prompt-button").disabled = on;
     $("build-progress-text").textContent = text;
     $("build-progress").hidden = !on;
     renderNotice();
@@ -1007,6 +1017,8 @@ $("question").addEventListener("input", () => {
 
 $("sidebar").addEventListener("scroll", closeMenu);
 $("upload-button").addEventListener("click", openFilePicker);
+$("upload-card").addEventListener("click", openFilePicker);
+$("build-prompt-button").addEventListener("click", buildIndex);
 $("attach-button").addEventListener("click", openFilePicker);
 $("build-button").addEventListener("click", buildIndex);
 $("file-input").addEventListener("change", (event) => uploadFiles(event.target.files));
@@ -1051,10 +1063,32 @@ window.addEventListener("focus", () => {
 
 // ---------- Start ----------
 
+// Was the dashboard just opened fresh? The server gets a new boot_id every time it starts
+// (run_dashboard.bat restarts it). This tab remembers the boot_id it saw last.
+function isFreshStart() {
+    const boot = state.status && state.status.boot_id;
+    let seen = null;
+    try {
+        seen = sessionStorage.getItem(BOOT_KEY);
+        if (boot) sessionStorage.setItem(BOOT_KEY, boot);
+    } catch {
+        // storage can be blocked; then every load counts as fresh
+    }
+    return !boot || seen !== boot;
+}
+
 (async function init() {
     const params = new URLSearchParams(location.search);
     await refreshStatus();
     loadChats();
-    if (params.get("chat")) await openChat(params.get("chat"), { push: false });
-    else startNewChat(params.get("paper"), { push: false });
+    // A fresh start always begins on the default page, even if the browser reopens the
+    // address of an old chat. A reload while the dashboard is running keeps the chat.
+    if (isFreshStart()) {
+        history.replaceState({}, "", "/chat");
+        startNewChat(null, { push: false });
+    } else if (params.get("chat")) {
+        await openChat(params.get("chat"), { push: false });
+    } else {
+        startNewChat(params.get("paper"), { push: false });
+    }
 })();

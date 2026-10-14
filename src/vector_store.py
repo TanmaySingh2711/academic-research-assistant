@@ -67,7 +67,7 @@ def load_store(index_dir="index"):
     missing = [p.name for p in paths if not p.exists()]
     if missing:
         raise FileNotFoundError(
-            f"Missing {', '.join(missing)} in '{index_dir}'. Build the index first: python build_index.py"
+            f"Missing {', '.join(missing)} in '{index_dir}'. Build the index first: python scripts/build_index.py"
         )
 
     index = faiss.read_index(str(paths[0]))
@@ -80,7 +80,7 @@ def load_store(index_dir="index"):
     if index.ntotal != len(chunks):
         raise ValueError(
             f"Index is out of date: {index.ntotal} vectors but {len(chunks)} chunks. "
-            "Rebuild it: python build_index.py"
+            "Rebuild it: python scripts/build_index.py"
         )
 
     return index, chunks, info

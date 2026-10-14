@@ -2,6 +2,7 @@
 
 import socket
 import threading
+import uuid
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -29,6 +30,11 @@ app.config["WARM_UP_MODEL"] = True  # load the embedding model in the background
 
 # Only one request at a time may rebuild the index (Build index, or deleting a paper)
 process_lock = threading.Lock()
+
+# New every time the server starts. The page compares it with the one it saw before:
+# a different id means the dashboard was opened fresh, so it starts on the default page
+# instead of reopening the last chat.
+BOOT_ID = uuid.uuid4().hex
 
 # The loaded store as one tuple (index, chunks, info), or None if there is no index yet.
 # It is replaced in one step, so /ask never sees a new index with old chunks.
@@ -337,6 +343,7 @@ def status():
         "pdfs_in_data": pdfs_in_data(),
         "indexed_papers": indexed_papers(current),
         "ollama_running": ollama_running,
+        "boot_id": BOOT_ID,
     })
 
 

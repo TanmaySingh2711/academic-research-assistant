@@ -48,28 +48,30 @@
             <div class="empty-state" id="empty-state">
                 <div class="empty-logo">{{ logo(40) }}</div>
                 <h1>What would you like to know?</h1>
-                <p id="empty-scope">Ask anything about your papers. Every answer shows the page it came from.</p>
+                <p id="empty-scope">Upload a research paper, or pick one to start a chat.</p>
+
+                <!-- Default page (no paper picked yet): upload a paper, or pick one -->
+                <div class="start-panel" id="start-panel" hidden>
+                    <button type="button" class="upload-card" id="upload-card">
+                        <span class="upload-card-icon">{{ icon('upload', 24) }}</span>
+                        <strong>Upload a research paper</strong>
+                        <span>Click to choose PDF files, or drop them anywhere on this page. Up to 25 MB.</span>
+                    </button>
+                    <div class="paper-picks" id="paper-picks" hidden>
+                        <p class="suggest-label">Or pick a paper</p>
+                        <div class="paper-pick-list" id="paper-pick-list"></div>
+                    </div>
+                </div>
+
+                <!-- A paper that is not in the index yet -->
+                <div class="build-prompt" id="build-prompt" hidden>
+                    <button type="button" class="btn btn-primary" id="build-prompt-button">{{ icon('database', 16) }} Build index</button>
+                </div>
 
                 <!-- Questions about the selected paper, written by the local model (filled by chat.js) -->
                 <div class="suggest" id="suggest" hidden>
                     <p class="suggest-label" id="suggest-label">Suggested questions for this paper</p>
                     <div class="suggestions" id="suggestions"></div>
-                </div>
-
-                <!-- Shown instead of the suggestions when there is no index yet -->
-                <div class="setup-steps" id="setup-steps" hidden>
-                    <div class="setup-step">
-                        <span class="step-dot">1</span>
-                        <div><strong>Upload a PDF</strong><p>Use the clip button below, or drop files on this page.</p></div>
-                    </div>
-                    <div class="setup-step">
-                        <span class="step-dot">2</span>
-                        <div><strong>Build the index</strong><p>Click Build index in the sidebar. It takes about 15 seconds.</p></div>
-                    </div>
-                    <div class="setup-step">
-                        <span class="step-dot">3</span>
-                        <div><strong>Ask</strong><p>Type a question and press Enter.</p></div>
-                    </div>
                 </div>
             </div>
 

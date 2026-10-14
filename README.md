@@ -60,7 +60,6 @@ question
 ```
 academic-research-assistant/
 |-- app.py                  Flask backend: routes /, /upload, /process, /ask, /status
-|-- build_index.py          Rebuild the index from the terminal
 |-- setup.bat / setup.sh    One-click setup (Windows / macOS and Linux)
 |-- run_dashboard.bat       Start the dashboard on Windows (double-click)
 |-- requirements.txt        Python libraries (pinned versions)
@@ -74,6 +73,7 @@ academic-research-assistant/
 |-- scripts/
 |   |-- run_dashboard.ps1   Launcher used by run_dashboard.bat
 |   |-- serve.py            Runs the app on http://localhost:5000
+|   |-- build_index.py      Rebuild the index from the terminal
 |   `-- configure_venv.py   Sends the project's Python cache files to .cache/pycache/
 |-- src/
 |   |-- loader.py           Read PDFs page by page and clean the text
@@ -175,15 +175,15 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 | Assistant | `/chat` | Upload PDFs (clip button or drag and drop), click **Build index**, start a chat about a paper, ask, and manage papers and chats in the sidebar |
 | How it works | `/how-it-works` | Three flowcharts: how it was built, how it works inside, and the user flow |
 
-1. On the Assistant page, upload one or more PDFs.
-2. Click **Build index**. For 3 papers this took about 13 to 19 seconds on a CPU.
+1. The Assistant page always opens on a default page (like a new chat in ChatGPT): upload one or more PDFs there, or pick a paper. Opening the dashboard fresh never reopens the last chat; a reload while it runs keeps the open chat.
+2. Click **Build index** (on the page of a new paper, or in the sidebar). For 3 papers this took about 13 to 19 seconds on a CPU.
 3. In the sidebar, click **+** next to a paper to start a new chat about it. The assistant suggests a few questions about that paper (a few seconds the first time). Click one, or type your own question and press Enter.
 4. Open the sources under the answer to check the exact text. Each chat is saved in the sidebar, under its paper.
 5. Use the **...** button next to a chat to rename or delete it, or next to a paper to delete the paper with all its chats.
 
 To rebuild the index from the terminal instead (for example after copying PDFs into `data/` by hand):
 ```
-python build_index.py
+python scripts/build_index.py
 ```
 
 Uploading a PDF does not change the answers until you build the index again.
@@ -291,7 +291,7 @@ python -m tests.test_dashboard        # the 4 pages, static files, no long dashe
 
 Notes:
 
-- Most tests need papers in `data/` and a built index (`python build_index.py`). Without your own papers, `python -m tests.make_sample_pdfs` puts 3 small sample PDFs in `data/` (this is what CI does).
+- Most tests need papers in `data/` and a built index (`python scripts/build_index.py`). Without your own papers, `python -m tests.make_sample_pdfs` puts 3 small sample PDFs in `data/` (this is what CI does).
 - `test_app` works only in temporary folders with its own sample PDFs, so it never changes your `data/`, `index/` or `chats/`.
 - Stop the running app before running the tests if you want port 5000 free; the tests themselves do not use the port.
 - A test script exits with an error code when one of its checks fails, so CI can detect it. LLM answers are printed but not checked word by word, because their wording can change between runs.
@@ -300,7 +300,7 @@ Lint and type check (install the tools once with `pip install -r requirements-de
 
 ```
 ruff check .
-mypy app.py build_index.py src tests scripts
+mypy app.py src tests scripts
 ```
 
 ## Continuous integration

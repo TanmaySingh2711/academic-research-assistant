@@ -58,5 +58,5 @@ def check_model_matches(info):
     if current != built_with:
         raise ValueError(
             f"The index was built with '{built_with}' but the current model is '{current}'. "
-            "Vectors from different models cannot be compared. Rebuild it: python build_index.py"
+            "Vectors from different models cannot be compared. Rebuild it: python scripts/build_index.py"
         )

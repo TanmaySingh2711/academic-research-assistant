@@ -39,7 +39,7 @@ jobs:
       # CPU-only PyTorch: much smaller than the default CUDA build on Linux
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r requirements-dev.txt
-      - run: mypy app.py build_index.py src tests scripts
+      - run: mypy app.py src tests scripts
 
   setup:
     name: One-click setup (${{ matrix.os }})
@@ -113,7 +113,7 @@ jobs:
       - name: Create sample PDFs
         run: python -m tests.make_sample_pdfs
       - name: Build the index
-        run: python build_index.py
+        run: python scripts/build_index.py
 
       - name: Run the test scripts
         shell: bash
