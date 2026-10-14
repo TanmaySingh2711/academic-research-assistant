@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}History | Academic Research Assistant{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">{% endblock %}
+{% block body_class %}page-history{% endblock %}
+
+{% block content %}
+<main class="page">
+    <section class="history-head">
+        <div>
+            <span class="eyebrow" data-reveal>{{ icon('history', 14) }} Chat history</span>
+            <h1 class="page-title" data-reveal style="--delay: 80">Your chats, <span class="gradient-text">paper by paper</span></h1>
+            <p class="page-lead" data-reveal style="--delay: 160">
+                Every chat is saved on this computer and grouped by the paper it was about.
+                Open one to read it again or keep asking.
+            </p>
+        </div>
+        <label class="search" data-reveal style="--delay: 220">
+            {{ icon('search', 16) }}
+            <input type="search" id="search" placeholder="Search chats" aria-label="Search chats">
+        </label>
+    </section>
+
+    <div class="history-summary" id="summary" data-reveal style="--delay: 260"></div>
+
+    <div class="groups" id="groups">
+        <div class="group card"><span class="skeleton" style="width: 40%; height: 18px"></span></div>
+        <div class="group card"><span class="skeleton" style="width: 55%; height: 18px"></span></div>
+    </div>
+
+    <div class="history-empty" id="empty" hidden>
+        <div class="icon-box">{{ icon('chat', 22) }}</div>
+        <h2>No chats yet</h2>
+        <p>Ask your first question on the Assistant page. It will show up here.</p>
+        <a class="btn btn-primary" href="{{ url_for('chat_page') }}">Open the assistant {{ icon('arrow-right', 16) }}</a>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/history.js') }}"></script>{% endblock %}

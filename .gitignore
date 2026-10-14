@@ -19,6 +19,10 @@ index/*
 data/*
 !data/.gitkeep
 
+# Saved chat history (private, keep the folder)
+chats/*
+!chats/.gitkeep
+
 # OS / editor files
 .DS_Store
 .vscode/

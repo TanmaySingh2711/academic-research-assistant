@@ -11,8 +11,11 @@ def embed_query(question):
     return normalize_vectors(vector)
 
 
-def retrieve(question, index, chunks, k=3):
-    """Return the k chunks most similar to the question, best first."""
+def retrieve(question, index, chunks, k=3, source=None):
+    """Return the k chunks most similar to the question, best first.
+
+    If source is a filename, only chunks from that paper are returned.
+    """
     if not question or not question.strip():
         raise ValueError("Question is empty. Please type a question.")
     if k < 1:
@@ -20,20 +23,27 @@ def retrieve(question, index, chunks, k=3):
     k = min(k, len(chunks))  # cannot return more chunks than we have
 
     query = embed_query(question)
-    # FAISS returns two (1, k) arrays: similarity scores and row numbers, best first
-    scores, ids = index.search(query, k)
+    # For one paper, rank ALL chunks and keep that paper's best k.
+    # Exact search over a few hundred chunks takes only milliseconds.
+    search_k = index.ntotal if source else k
+    # FAISS returns two (1, search_k) arrays: similarity scores and row numbers, best first
+    scores, ids = index.search(query, search_k)
 
     results = []
-    for rank, (score, row) in enumerate(zip(scores[0], ids[0]), start=1):
+    for score, row in zip(scores[0], ids[0]):
         chunk = chunks[row]  # row i in the index = chunks[i]
+        if source and chunk["source"] != source:
+            continue
         results.append({
-            "rank": rank,
+            "rank": len(results) + 1,
             "score": round(float(score), 4),
             "chunk_id": chunk["chunk_id"],
             "source": chunk["source"],
             "page": chunk["page"],
             "text": chunk["text"],
         })
+        if len(results) == k:
+            break
     return results
 
 

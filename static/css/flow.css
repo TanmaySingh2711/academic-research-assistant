@@ -1,0 +1,583 @@
+/* How it works page: tabs and flowcharts drawn with HTML and CSS */
+
+.how-head {
+    text-align: center;
+}
+
+.how-head .page-lead {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ---------- Tabs ---------- */
+
+.tabs {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 36px;
+    padding: 5px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-soft);
+    overflow-x: auto;
+}
+
+.tab {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.tab:hover {
+    color: var(--text);
+}
+
+.tab.is-active {
+    color: #031216;
+}
+
+/* The cyan pill slides under the active tab */
+.tab-indicator {
+    position: absolute;
+    top: 5px;
+    bottom: 5px;
+    left: 0;
+    width: 0;
+    border-radius: 999px;
+    background: var(--cyan);
+    box-shadow: 0 0 22px rgba(34, 211, 238, 0.4);
+    transition: transform 0.45s var(--ease), width 0.45s var(--ease);
+}
+
+.panel[hidden] {
+    display: none;
+}
+
+.panel-lead {
+    max-width: 640px;
+    margin: 0 auto 32px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* ---------- Flowchart ---------- */
+
+.flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.flow-node {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    width: min(540px, 100%);
+    padding: 14px 18px;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background: var(--surface);
+    transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s var(--ease);
+}
+
+.flow-node:hover {
+    transform: translateY(-2px);
+    border-color: var(--cyan-line);
+    box-shadow: var(--cyan-glow);
+}
+
+.node-num,
+.node-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    border-radius: 9px;
+    font-weight: 800;
+    font-size: 0.82rem;
+}
+
+.node-num {
+    background: var(--cyan);
+    color: #031216;
+}
+
+.node-icon {
+    border: 1px solid var(--cyan-line);
+    background: var(--cyan-soft);
+    color: var(--cyan);
+}
+
+.node-body {
+    min-width: 0;
+}
+
+.flow-node h4 {
+    margin: 3px 0 2px;
+    font-size: 0.98rem;
+}
+
+.flow-node p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.flow-node code {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.76rem;
+}
+
+.flow-start,
+.flow-end {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 10px 22px;
+    border: 1px solid var(--cyan);
+    border-radius: 999px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 0 26px rgba(34, 211, 238, 0.18);
+}
+
+.flow-phase {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: min(540px, 100%);
+    margin: 4px 0 14px;
+    color: var(--text-faint);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.flow-phase::before,
+.flow-phase::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border-strong);
+}
+
+/* Arrow between two boxes: a line, an arrow head and a dot that runs down the line */
+.flow-arrow {
+    position: relative;
+    width: 2px;
+    height: 38px;
+    background: var(--cyan-line);
+    transform-origin: top;
+}
+
+.flow-arrow::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    border: 6px solid transparent;
+    border-top: 7px solid var(--cyan);
+    border-bottom: 0;
+    transform: translateX(-50%);
+}
+
+.flow-arrow i {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 10px var(--cyan);
+    transform: translateX(-50%);
+    opacity: 0;
+}
+
+.flow.is-playing .flow-arrow i {
+    animation: drop 2.2s ease-in infinite;
+    animation-delay: calc(var(--i, 0) * 90ms + 600ms);
+}
+
+.flow-arrow b {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    color: var(--ok);
+    font-size: 0.74rem;
+    transform: translateY(-50%);
+}
+
+/* ---------- Yes / no question ---------- */
+
+.flow-decision {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    width: 100%;
+}
+
+.flow-diamond {
+    position: relative;
+    grid-column: 2;
+    display: grid;
+    place-items: center;
+    width: 250px;
+    height: 120px;
+    padding: 0 48px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Two diamond shapes: the outer one is the cyan border, the inner one the fill */
+.flow-diamond::before,
+.flow-diamond::after {
+    content: "";
+    position: absolute;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.flow-diamond::before {
+    inset: 0;
+    background: var(--cyan);
+}
+
+.flow-diamond::after {
+    inset: 2px 3px;
+    background: var(--surface-2);
+}
+
+.flow-diamond span {
+    position: relative;
+    z-index: 1;
+}
+
+.flow-side {
+    grid-column: 3;
+    display: flex;
+    align-items: center;
+}
+
+.flow-side-line {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 2px;
+    background: rgba(251, 191, 36, 0.5);
+}
+
+.flow-side-line::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -1px;
+    border: 6px solid transparent;
+    border-left: 7px solid var(--warn);
+    border-right: 0;
+    transform: translateY(-50%);
+}
+
+.flow-side-line b {
+    position: absolute;
+    bottom: 6px;
+    left: 8px;
+    color: var(--warn);
+    font-size: 0.74rem;
+}
+
+.flow-node-side {
+    width: min(260px, 100%);
+    padding: 12px 14px;
+    border-color: rgba(251, 191, 36, 0.35);
+}
+
+.flow-node-side .node-icon {
+    border-color: rgba(251, 191, 36, 0.4);
+    background: rgba(251, 191, 36, 0.1);
+    color: var(--warn);
+}
+
+.flow-node-side h4 {
+    font-size: 0.9rem;
+}
+
+.flow-node-side p {
+    font-size: 0.82rem;
+}
+
+/* ---------- Architecture strip ---------- */
+
+.arch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 48px;
+}
+
+.arch-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 190px;
+    padding: 18px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    background: var(--surface);
+    text-align: center;
+}
+
+.arch-box .node-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 6px;
+}
+
+.arch-box span {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+.arch-box small {
+    color: var(--text-faint);
+    font-size: 0.74rem;
+}
+
+.arch-main {
+    border-color: var(--cyan-line);
+    box-shadow: var(--cyan-glow);
+}
+
+/* Link between two programs: dots move both ways (request and answer) */
+.arch-link {
+    position: relative;
+    flex: 1;
+    max-width: 150px;
+    min-width: 60px;
+    height: 2px;
+    background: var(--cyan-line);
+}
+
+.arch-link b {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    color: var(--text-faint);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+.arch-link i {
+    position: absolute;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 10px var(--cyan);
+    animation: across 2.4s ease-in-out infinite;
+}
+
+.arch-link i:last-child {
+    animation-name: back;
+    animation-delay: 1.2s;
+}
+
+/* ---------- Two lanes side by side ---------- */
+
+.lanes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+}
+
+.lane {
+    padding: 22px 18px 26px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-soft);
+}
+
+.lane-head {
+    margin-bottom: 22px;
+    text-align: center;
+}
+
+.lane-head h3 {
+    margin: 10px 0 4px;
+    font-size: 1.1rem;
+}
+
+.lane-head p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+/* ---------- Play animation (added by how.js when a chart is shown) ---------- */
+
+.js .flow > * {
+    opacity: 0;
+}
+
+.js .flow.is-playing > * {
+    animation: fadeUp 0.5s var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+.js .flow.is-playing > .flow-arrow {
+    animation: grow-down 0.4s var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+@keyframes grow-down {
+    from { opacity: 0; transform: scaleY(0); }
+    to { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes drop {
+    0% { top: 0; opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { top: calc(100% - 6px); opacity: 0; }
+}
+
+@keyframes across {
+    0% { left: 0; opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { left: calc(100% - 8px); opacity: 0; }
+}
+
+@keyframes back {
+    0% { left: calc(100% - 8px); opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { left: 0; opacity: 0; }
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 900px) {
+    .lanes {
+        grid-template-columns: 1fr;
+    }
+
+    .arch {
+        flex-direction: column;
+    }
+
+    .arch-link {
+        width: 2px;
+        height: 46px;
+        min-width: 0;
+        flex: none;
+    }
+
+    .arch-link b {
+        bottom: auto;
+        top: 50%;
+        left: 12px;
+        transform: translateY(-50%);
+    }
+
+    .arch-link i {
+        left: -3px;
+        animation-name: down;
+    }
+
+    .arch-link i:last-child {
+        animation-name: up;
+    }
+}
+
+@media (max-width: 720px) {
+    .flow-decision {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        gap: 10px;
+    }
+
+    .flow-diamond,
+    .flow-side {
+        grid-column: 1;
+    }
+
+    .flow-side {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .flow-side-line {
+        width: 2px;
+        height: 26px;
+    }
+
+    .flow-side-line::after {
+        top: auto;
+        right: auto;
+        bottom: -1px;
+        left: 50%;
+        border: 6px solid transparent;
+        border-top: 7px solid var(--warn);
+        border-bottom: 0;
+        transform: translateX(-50%);
+    }
+
+    .flow-side-line b {
+        bottom: auto;
+        top: 50%;
+        left: 10px;
+        transform: translateY(-50%);
+    }
+
+    .tab span {
+        display: none;
+    }
+}
+
+@keyframes down {
+    0% { top: 0; opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { top: calc(100% - 8px); opacity: 0; }
+}
+
+@keyframes up {
+    0% { top: calc(100% - 8px); opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { top: 0; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .js .flow > * {
+        opacity: 1;
+    }
+
+    .flow-arrow i,
+    .arch-link i {
+        display: none;
+    }
+}

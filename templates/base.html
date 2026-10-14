@@ -1,0 +1,45 @@
+{% from "_icons.html" import icon, logo %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Academic Research Assistant{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    {% block styles %}{% endblock %}
+    <!-- Loaded in <head> on purpose: it marks the page as "JS on" before anything is drawn -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<header class="topbar">
+    <a class="brand" href="{{ url_for('overview') }}">
+        {{ logo(26) }}
+        <span>Research Assistant</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+        {% set pages = [
+            ('overview', 'Overview', 'home'),
+            ('chat_page', 'Assistant', 'chat'),
+            ('how_it_works', 'How it works', 'flow'),
+            ('history_page', 'History', 'history'),
+        ] %}
+        {% for endpoint, label, icon_name in pages %}
+        <a href="{{ url_for(endpoint) }}" class="nav-link {% if request.endpoint == endpoint %}is-active{% endif %}"
+           {% if request.endpoint == endpoint %}aria-current="page"{% endif %}>
+            {{ icon(icon_name, 16) }}<span>{{ label }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+    <div class="status-pill" id="status-pill" title="Checking status...">
+        <span class="status-dot"></span>
+        <span class="status-text">Checking...</span>
+    </div>
+</header>
+
+{% block content %}{% endblock %}
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

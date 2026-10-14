@@ -8,15 +8,16 @@ Everything runs on your own computer: no API keys, no paid services and no cloud
 
 ## Features
 
-- Upload one or more research paper PDFs from a web dashboard
-- Build a search index from the papers with one click (or from the terminal)
-- Ask questions in plain English and get a short answer from a local LLM
-- Sources for every answer: `[Source N] filename, page P` with a similarity score
-- Expand each source to read the exact chunk text the model was given
+- A 4-page dashboard in a black and cyan theme: Overview, Assistant, How it works and History
+- Chat interface in the style of ChatGPT, Claude and Gemini: message bubbles, a typing effect, Enter to send
+- Upload PDFs with the clip button or by dropping them on the page, then build the search index with one click
+- Ask about one paper or about all papers; each paper gets its own chats
+- Sources for every answer: paper, page and similarity score; click a citation number to open the exact chunk text
+- Chat history saved on your computer and grouped by paper, with search
 - Choose how many chunks the model reads (K = 1, 3 or 5)
 - Says "I could not find this in the uploaded papers." when the papers do not contain the answer
 - Shows prompt tokens, answer tokens and response time for each answer
-- Status bar showing whether the index is built, whether Ollama is running and which papers are loaded
+- Flowcharts that show how the project was built, how it works inside and the user flow
 - Works offline: plain HTML, CSS and JavaScript, no CDN or external fonts
 
 ## How it works
@@ -79,12 +80,20 @@ academic-research-assistant/
 |   |-- retriever.py        Embed a question and find the top-K chunks
 |   |-- prompt_builder.py   System prompt, numbered context and sources
 |   |-- generator.py        Call Ollama, token counts, "not found" check
-|   `-- rag_pipeline.py     answer_question(): retrieve -> prompt -> generate
+|   |-- rag_pipeline.py     answer_question(): retrieve -> prompt -> generate
+|   `-- chat_store.py       Save and list chats (one JSON file per chat in chats/)
+|-- chats/                  Saved chat history (generated, not in the repo)
 |-- templates/
-|   `-- index.html          Dashboard page
+|   |-- base.html           Shared layout: top bar and navigation
+|   |-- overview.html       Page 1: what the project is and how to use it
+|   |-- chat.html           Page 2: the assistant (upload, build index, chat)
+|   |-- how_it_works.html   Page 3: three flowcharts
+|   |-- history.html        Page 4: chats grouped by paper
+|   `-- _icons.html         Line icons and the logo as inline SVG
 |-- static/
-|   |-- style.css           Dashboard styles
-|   `-- app.js              Dashboard logic (fetch calls to the Flask API)
+|   |-- css/                One shared stylesheet (base.css) plus one per page
+|   |-- js/                 common.js (shared helpers) plus one script per page
+|   `-- img/logo.svg        App icon
 `-- tests/
     |-- verify_setup.py     Check that libraries are installed and Ollama is reachable
     |-- make_sample_pdfs.py Create 3 synthetic sample PDFs (used by CI)
@@ -154,9 +163,17 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 
 **Using the dashboard:**
 
-1. Step 1: choose one or more PDFs and click **Upload**.
-2. Step 2: click **Build index**. For 3 papers this took about 13 to 19 seconds on a CPU.
-3. Step 3: type a question, choose K and press **Ask** (or Enter).
+| Page | URL | What you do there |
+|---|---|---|
+| Overview | `/` | Read what the project is, see live numbers (papers, chunks) and the steps |
+| Assistant | `/chat` | Upload PDFs (clip button or drag and drop), click **Build index**, pick a paper or All papers, and ask |
+| How it works | `/how-it-works` | Three flowcharts: how it was built, how it works inside, and the user flow |
+| History | `/history` | All chats grouped by paper; search them, open one to continue, or start a new chat for a paper |
+
+1. On the Assistant page, upload one or more PDFs.
+2. Click **Build index**. For 3 papers this took about 13 to 19 seconds on a CPU.
+3. Pick a paper at the top (or keep All papers), type a question and press Enter.
+4. Open the sources under the answer to check the exact text. Each chat is saved and shows up on the History page.
 
 To rebuild the index from the terminal instead (for example after copying PDFs into `data/` by hand):
 ```
@@ -227,13 +244,14 @@ Test set: 3 research papers (27 pages, 302 chunks). Everything ran on a CPU (no 
 ## Known limitations
 
 - **Citations from a 3B model are not always right.** It sometimes cites the wrong source number (for example `[Source 1]` for a fact from Source 3), and it once described related work (Devlin et al. 2016, mentioned inside a paper) as if it were the paper's own method. Always check the expanded chunks.
+- **No memory between questions.** A chat looks like ChatGPT, but each question is answered on its own from the papers. A follow-up like "explain that more" does not know the previous answer, so ask full questions.
 - **No OCR.** Scanned (image-only) PDFs have no text, so they cannot be searched. The loader prints a warning for them.
 - **Noisy text from PDF layout.** Tables, formulas, reference lists, repeated page headers, publisher cover pages and rotated watermarks come out as noisy text (for example `a r X i v : 2 2 0 6 ...`). Repeated headers that contain the paper title can also raise the score of unrelated chunks from that paper.
 - **Some chunks are cut at the token limit.** 7 of 302 chunks are longer than the 256 tokens the embedding model reads, so their ends are ignored during search (6 reference-list chunks and 1 results table).
 - **Neighbouring chunks can both be retrieved.** Because of the 20-word overlap, two results can share part of their text.
 - **Local, single-user app.** It uses Flask's development server on 127.0.0.1, with no login. It is not meant to be put on the internet.
 - **Upload limit of 25 MB per request** (all files in one upload together).
-- **No delete button.** To remove a paper, delete it from `data/` and build the index again.
+- **No delete button.** To remove a paper, delete it from `data/` and build the index again. To remove a chat, delete its file from `chats/`.
 - **File names change on upload.** Spaces and special characters become underscores (`secure_filename`).
 
 ## Possible improvements
@@ -260,7 +278,8 @@ python -m tests.test_retriever        # top-K results for test questions
 python -m tests.test_prompt_builder   # exact messages sent to the LLM
 python -m tests.test_generator        # answers from llama3.2:3b (needs Ollama)
 python -m tests.test_app              # all Flask routes (needs Ollama)
-python -m tests.test_dashboard        # dashboard page and static files
+python -m tests.test_chat_store       # saving and listing chats (no LLM needed)
+python -m tests.test_dashboard        # the 4 pages, static files, no long dashes or emoji
 ```
 
 Notes:

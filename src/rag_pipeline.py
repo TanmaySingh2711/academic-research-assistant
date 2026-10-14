@@ -5,9 +5,12 @@ from src.prompt_builder import build_messages, get_sources
 from src.retriever import retrieve
 
 
-def answer_question(question, index, chunks, k=3):
-    """Answer a question from the indexed papers. This is the function the Flask app calls."""
-    results = retrieve(question, index, chunks, k=k)
+def answer_question(question, index, chunks, k=3, source=None):
+    """Answer a question from the indexed papers. This is the function the Flask app calls.
+
+    source: a paper filename to search only that paper, or None to search all papers.
+    """
+    results = retrieve(question, index, chunks, k=k, source=source)
     messages = build_messages(question, results)
     generated = generate_answer(messages)
 

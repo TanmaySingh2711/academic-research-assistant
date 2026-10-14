@@ -3,12 +3,17 @@
 import io
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 from app import app
 
+# Save the test chats in a temporary folder, not in the real chats/ folder
+chats_tmp = tempfile.TemporaryDirectory()
+app.config["CHATS_DIR"] = chats_tmp.name
+
 client = app.test_client()
-failures = []
+failures: list[str] = []
 
 
 def show(label, response, expected_status, short_answer=False):
@@ -57,6 +62,43 @@ show("POST /ask (real question, k=3)", client.post("/ask", json={
 }), 200, short_answer=True)
 # The model's wording can vary, so only the status code is checked here (not_found is printed)
 show("POST /ask (off-topic)", client.post("/ask", json={"question": "What is the capital of France?"}), 200)
+
+# ---------- Chat history and asking about one paper ----------
+
+status = client.get("/status").get_json()
+paper = status["indexed_papers"][0]
+body = show("POST /ask (one paper, new chat)", client.post("/ask", json={
+    "question": "What is the main idea of this paper?", "k": 3, "paper": paper,
+}), 200, short_answer=True)
+chat_id = body["chat_id"]
+if body["paper"] != paper or any(s["source"] != paper for s in body["sources"]):
+    failures.append("one paper: sources must all come from the chosen paper")
+
+body = show("POST /ask (follow-up in the same chat)", client.post("/ask", json={
+    "question": "What are the results?", "k": 1, "chat_id": chat_id,
+}), 200, short_answer=True)
+if body["chat_id"] != chat_id or body["paper"] != paper:
+    failures.append("follow-up: must stay in the same chat and paper")
+
+show("POST /ask (paper not indexed)", client.post("/ask", json={"question": "Hi?", "paper": "missing.pdf"}), 400)
+show("POST /ask (unknown chat)", client.post("/ask", json={"question": "Hi?", "chat_id": "000000000000"}), 404)
+
+response = client.get("/api/chats")
+chats = response.get_json()
+print(f"\n### GET /api/chats\nstatus {response.status_code}, {len(chats)} chats")
+for chat in chats:
+    print(f"  {chat['id']} | {chat['questions']} question(s) | paper={chat['paper']} | {chat['title']}")
+if response.status_code != 200 or len(chats) != 3:
+    failures.append("/api/chats: expected 3 chats (2 all-papers chats + 1 paper chat)")
+
+response = client.get(f"/api/chats/{chat_id}")
+messages = response.get_json().get("messages", [])
+print(f"\n### GET /api/chats/{chat_id}\nstatus {response.status_code}, {len(messages)} messages")
+if response.status_code != 200 or len(messages) != 4:
+    failures.append("/api/chats/<id>: expected 4 messages (2 questions, 2 answers)")
+
+show("GET /api/chats/<bad id>", client.get("/api/chats/..%2Fapp"), 404)
+chats_tmp.cleanup()
 
 if failures:
     sys.exit(f"{len(failures)} check(s) failed: {failures}")

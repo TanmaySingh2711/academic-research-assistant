@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, logo %}
+{% block title %}Assistant | Academic Research Assistant{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">{% endblock %}
+{% block body_class %}page-chat{% endblock %}
+
+{% block content %}
+<div class="chat-layout" id="chat-layout">
+
+    <!-- Sidebar: new chat, papers, recent chats -->
+    <aside class="sidebar" id="sidebar" aria-label="Papers and chats">
+        <button type="button" class="btn btn-primary new-chat" id="new-chat">{{ icon('plus', 16) }} New chat</button>
+
+        <section class="side-section">
+            <div class="side-heading">
+                <span>Papers</span>
+                <span class="badge badge-muted" id="paper-count">0</span>
+            </div>
+            <ul class="paper-list" id="paper-list">
+                <li class="side-empty"><span class="skeleton" style="width: 80%"></span></li>
+            </ul>
+            <div class="side-actions">
+                <button type="button" class="btn btn-ghost btn-small" id="upload-button">{{ icon('upload', 15) }} Upload PDF</button>
+                <button type="button" class="btn btn-ghost btn-small" id="build-button">{{ icon('database', 15) }} Build index</button>
+            </div>
+            <p class="build-progress" id="build-progress" role="status" hidden>
+                <span class="spinner"></span>Building the index, about 15 seconds...
+            </p>
+        </section>
+
+        <section class="side-section side-chats">
+            <div class="side-heading">
+                <span>Recent chats</span>
+                <a class="side-link" href="{{ url_for('history_page') }}">View all</a>
+            </div>
+            <ul class="recent-list" id="recent-list"></ul>
+        </section>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- Main chat area -->
+    <section class="chat-main" id="chat-main">
+        <header class="chat-header">
+            <button type="button" class="icon-btn menu-btn" id="menu-button" aria-label="Show papers and chats">{{ icon('menu') }}</button>
+            <label class="select-wrap" id="paper-select-wrap" title="Which paper the assistant reads">
+                {{ icon('file', 16) }}
+                <select id="paper-select" aria-label="Paper to ask about"></select>
+            </label>
+            <label class="select-wrap select-k" title="How many paper chunks the model reads for each answer">
+                {{ icon('layers', 16) }}
+                <span>Chunks</span>
+                <select id="k-select" aria-label="Number of chunks the model reads">
+                    <option value="1">1</option>
+                    <option value="3" selected>3</option>
+                    <option value="5">5</option>
+                </select>
+            </label>
+        </header>
+
+        <div class="messages" id="messages">
+            <!-- Shown before the first question -->
+            <div class="empty-state" id="empty-state">
+                <div class="empty-logo">{{ logo(40) }}</div>
+                <h1>What would you like to know?</h1>
+                <p id="empty-scope">Ask anything about your papers. Every answer shows the page it came from.</p>
+
+                <div class="suggestions" id="suggestions">
+                    <button type="button" class="suggestion" data-question="What is the main idea of this paper?">
+                        <strong>Main idea</strong><span>What is the main idea of this paper?</span>
+                    </button>
+                    <button type="button" class="suggestion" data-question="What method do the authors propose?">
+                        <strong>Method</strong><span>What method do the authors propose?</span>
+                    </button>
+                    <button type="button" class="suggestion" data-question="What are the main results?">
+                        <strong>Results</strong><span>What are the main results?</span>
+                    </button>
+                    <button type="button" class="suggestion" data-question="What limitations do the authors mention?">
+                        <strong>Limitations</strong><span>What limitations do the authors mention?</span>
+                    </button>
+                </div>
+
+                <!-- Shown instead of the suggestions when there is no index yet -->
+                <div class="setup-steps" id="setup-steps" hidden>
+                    <div class="setup-step">
+                        <span class="step-dot">1</span>
+                        <div><strong>Upload a PDF</strong><p>Use the clip button below, or drop files on this page.</p></div>
+                    </div>
+                    <div class="setup-step">
+                        <span class="step-dot">2</span>
+                        <div><strong>Build the index</strong><p>Click Build index in the sidebar. It takes about 15 seconds.</p></div>
+                    </div>
+                    <div class="setup-step">
+                        <span class="step-dot">3</span>
+                        <div><strong>Ask</strong><p>Type a question and press Enter.</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="thread" id="thread" aria-live="polite"></div>
+        </div>
+
+        <div class="composer-wrap">
+            <div class="notice" id="notice" hidden></div>
+            <form class="composer" id="composer">
+                <button type="button" class="icon-btn" id="attach-button" title="Upload PDFs" aria-label="Upload PDFs">{{ icon('paperclip') }}</button>
+                <textarea id="question" rows="1" placeholder="Ask about your papers..." aria-label="Your question"></textarea>
+                <button type="submit" class="send-btn" id="send-button" aria-label="Send" disabled>{{ icon('arrow-up') }}</button>
+            </form>
+            <p class="composer-hint">Enter to send, Shift+Enter for a new line. Each question is answered on its own, only from your papers.</p>
+        </div>
+
+        <input type="file" id="file-input" accept=".pdf,application/pdf" multiple hidden>
+        <div class="drop-overlay" id="drop-overlay" hidden>
+            <div class="drop-box">{{ icon('upload', 36) }}<p>Drop PDFs to upload</p></div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}"></script>{% endblock %}

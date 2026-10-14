@@ -48,3 +48,12 @@ for rank in range(1, 6):
         else:
             row += f"| {'':<36}"
     print(row)
+
+print("\n=== One paper only (source filter) ===")
+paper = sorted({c["source"] for c in chunks})[0]
+filtered = retrieve(QUESTIONS[1], index, chunks, k=3, source=paper)
+for r in filtered:
+    print(f"  #{r['rank']} score {r['score']:.4f} | {short(r['source'])} p{r['page']} | chunk {r['chunk_id']}")
+if len(filtered) != 3 or any(r["source"] != paper for r in filtered) or [r["rank"] for r in filtered] != [1, 2, 3]:
+    raise SystemExit(f"Source filter failed: expected 3 chunks from {paper} ranked 1, 2, 3")
+print(f"  OK: all 3 results come from {short(paper)}")

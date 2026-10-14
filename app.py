@@ -1,4 +1,4 @@
-"""Flask backend: upload PDFs, build the index, ask questions and check status (JSON API)."""
+"""Flask backend: dashboard pages plus a JSON API to upload PDFs, build the index, ask and see chat history."""
 
 import threading
 from pathlib import Path
@@ -8,6 +8,7 @@ from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
+from src.chat_store import add_exchange, get_chat, list_chats
 from src.ingest import run_ingestion
 from src.rag_pipeline import answer_question
 from src.retriever import check_model_matches
@@ -20,6 +21,7 @@ ALLOWED_K = (1, 3, 5)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB per upload request
+app.config["CHATS_DIR"] = BASE_DIR / "chats"  # one JSON file per chat (tests point this to a temp folder)
 
 # Only one /process request may rebuild the index at a time
 process_lock = threading.Lock()
@@ -47,9 +49,34 @@ def error(message, status):
     return jsonify({"error": message}), status
 
 
+def indexed_papers(current):
+    """Filenames of the papers that are in the loaded index."""
+    return sorted({chunk["source"] for chunk in current[1]}) if current else []
+
+
+# ---------- Pages ----------
+
 @app.get("/")
-def home():
-    return render_template("index.html")
+def overview():
+    return render_template("overview.html")
+
+
+@app.get("/chat")
+def chat_page():
+    return render_template("chat.html")
+
+
+@app.get("/how-it-works")
+def how_it_works():
+    return render_template("how_it_works.html")
+
+
+@app.get("/history")
+def history_page():
+    return render_template("history.html")
+
+
+# ---------- JSON API ----------
 
 
 @app.post("/upload")
@@ -89,7 +116,7 @@ def upload():
     if overwritten:
         message += f" Overwrote existing: {', '.join(overwritten)}."
     if saved:
-        message += " Click Process to rebuild the index."
+        message += " Click Build index to make them searchable."
 
     return jsonify({"saved": saved, "skipped": skipped, "message": message})
 
@@ -125,15 +152,42 @@ def ask():
 
     current = store  # take one consistent snapshot
     if current is None:
-        return error("No index yet. Upload PDFs and click Process first.", 409)
+        return error("No index yet. Upload PDFs and click Build index first.", 409)
     index, chunks, _ = current
 
+    # An existing chat keeps its own paper; a new chat uses the paper sent by the page (None = all papers)
+    chats_dir = app.config["CHATS_DIR"]
+    chat_id = data.get("chat_id")
+    if chat_id is not None:
+        try:
+            paper = get_chat(chats_dir, chat_id)["paper"]
+        except KeyError:
+            return error("This chat was not found. Start a new chat.", 404)
+    else:
+        paper = data.get("paper") or None
+        if paper is not None and paper not in indexed_papers(current):
+            return error("This paper is not in the index yet. Click Build index first.", 400)
+
     try:
-        result = answer_question(question.strip(), index, chunks, k=k)
+        result = answer_question(question.strip(), index, chunks, k=k, source=paper)
     except (ConnectionError, RuntimeError) as e:  # Ollama not running / model not downloaded
         return error(str(e), 503)
 
-    return jsonify(result)
+    chat = add_exchange(chats_dir, chat_id, paper, result)
+    return jsonify({**result, "chat_id": chat["id"], "paper": paper})
+
+
+@app.get("/api/chats")
+def chats():
+    return jsonify(list_chats(app.config["CHATS_DIR"]))
+
+
+@app.get("/api/chats/<chat_id>")
+def chat_detail(chat_id):
+    try:
+        return jsonify(get_chat(app.config["CHATS_DIR"], chat_id))
+    except KeyError:
+        return error("Chat not found.", 404)
 
 
 @app.get("/status")
@@ -152,6 +206,7 @@ def status():
         "chunks": len(current[1]) if current else 0,
         "built_at": current[2].get("built_at") if current else None,
         "pdfs_in_data": pdfs,
+        "indexed_papers": indexed_papers(current),
         "ollama_running": ollama_running,
     })
 

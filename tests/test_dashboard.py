@@ -1,6 +1,8 @@
-"""Check that the dashboard page and its static files are served (Flask test client)."""
+"""Check that the 4 dashboard pages and their static files are served (Flask test client)."""
 
+import re
 import sys
+from pathlib import Path
 
 from app import app
 
@@ -10,30 +12,43 @@ failures: list[str] = []
 
 def check(ok, label):
     """Print OK/FAIL for one check and remember failures."""
-    print(f"  {label:<40} {'OK' if ok else 'FAIL'}")
+    print(f"  {label:<52} {'OK' if ok else 'FAIL'}")
     if not ok:
         failures.append(label)
 
 
-page = client.get("/")
-html = page.get_data(as_text=True)
-print(f"GET /                  -> {page.status_code}")
-check(page.status_code == 200, "GET / returns 200")
+PAGES = {
+    "/": ["Ask your research papers", "From PDF to answer", "How to use it"],
+    "/chat": ["New chat", "Upload PDF", "Build index", "What would you like to know?"],
+    "/how-it-works": ["How it was built", "How it works inside", "User flow"],
+    "/history": ["Your chats", "Search chats"],
+}
 
-for title in ["Academic Research Assistant", "Upload papers", "Build index", "Ask a question", "Answer"]:
-    check(title in html, f"page contains {title!r}")
+static_files = set()
+for url, texts in PAGES.items():
+    response = client.get(url)
+    html = response.get_data(as_text=True)
+    print(f"GET {url:<14} -> {response.status_code}")
+    check(response.status_code == 200, f"{url} returns 200")
+    for text in texts:
+        check(text in html, f"{url} contains {text!r}")
+    # The page must not load anything from the internet (works offline)
+    check("http://" not in html and "https://" not in html, f"{url} has no external links")
+    # All JavaScript lives in static/js/ (no inline scripts)
+    scripts = re.findall(r"<script([^>]*)>", html)
+    check(bool(scripts) and all("src=" in attrs for attrs in scripts), f"{url} has no inline scripts")
+    static_files.update(re.findall(r'(?:href|src)="(/static/[^"]+)"', html))
 
-for path in ["/static/style.css", "/static/app.js"]:
+for path in sorted(static_files):
     response = client.get(path)
-    print(f"GET {path:<18} -> {response.status_code} ({response.content_type}, {len(response.data)} bytes)")
     check(response.status_code == 200, f"{path} returns 200")
     response.close()
 
-# The page must not load anything from the internet (works offline)
-check("http://" not in html and "https://" not in html, "no external links")
-# All JavaScript must live in static/app.js
-scripts = html.split("<script")[1:]
-check(len(scripts) == 1 and "src=" in scripts[0][:80], "no inline scripts")
+# Long dashes and emoji make text look machine-written, so the UI must not use them
+bad_characters = re.compile("[\u2013\u2014]|[\U0001F300-\U0001FAFF\u2600-\u27bf]")
+ui_files = [*Path("templates").glob("*.html"), *Path("static").rglob("*.css"), *Path("static").rglob("*.js")]
+found = [str(f) for f in ui_files if bad_characters.search(f.read_text(encoding="utf-8"))]
+check(not found, f"no long dashes or emoji in {len(ui_files)} UI files")
 
 if failures:
     sys.exit(f"{len(failures)} check(s) failed: {failures}")

@@ -119,7 +119,7 @@ jobs:
         shell: bash
         run: |
           for t in verify_setup test_loader test_chunker test_embedder test_vector_store \
-                   test_retriever test_prompt_builder test_generator test_app test_dashboard; do
+                   test_retriever test_prompt_builder test_generator test_chat_store test_app test_dashboard; do
             echo "::group::$t"
             python -m "tests.$t"
             echo "::endgroup::"

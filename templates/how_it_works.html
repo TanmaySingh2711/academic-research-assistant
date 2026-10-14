@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, logo %}
+{% block title %}How it works | Academic Research Assistant{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/flow.css') }}">{% endblock %}
+{% block body_class %}page-how{% endblock %}
+
+{# One box in a flowchart #}
+{% macro node(title, text, num=None, tag=None, icon_name=None) -%}
+<div class="flow-node">
+    {% if num %}<span class="node-num">{{ num }}</span>{% elif icon_name %}<span class="node-icon">{{ icon(icon_name, 16) }}</span>{% endif %}
+    <div class="node-body">
+        <h4>{{ title }}</h4>
+        <p>{{ text }}</p>
+        {% if tag %}<code>{{ tag }}</code>{% endif %}
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro arrow(label=None) -%}
+<div class="flow-arrow">{% if label %}<b>{{ label }}</b>{% endif %}<i></i></div>
+{%- endmacro %}
+
+{# A yes/no question: "yes" goes down, "no" goes to the side box #}
+{% macro decision(question, no_title, no_text) -%}
+<div class="flow-decision">
+    <div class="flow-diamond"><span>{{ question }}</span></div>
+    <div class="flow-side">
+        <span class="flow-side-line"><b>No</b></span>
+        <div class="flow-node flow-node-side">
+            <span class="node-icon">{{ icon('arrow-right', 16) }}</span>
+            <div class="node-body"><h4>{{ no_title }}</h4><p>{{ no_text }}</p></div>
+        </div>
+    </div>
+</div>
+{%- endmacro %}
+
+{% block content %}
+<main class="page">
+    <section class="how-head">
+        <span class="eyebrow" data-reveal>{{ icon('flow', 14) }} How it works</span>
+        <h1 class="page-title" data-reveal style="--delay: 80">From an empty folder to <span class="gradient-text">answers with sources</span></h1>
+        <p class="page-lead" data-reveal style="--delay: 160">
+            Three flowcharts: how the project was built, what happens inside when you use it,
+            and what you can do on the dashboard.
+        </p>
+    </section>
+
+    <div class="tabs" role="tablist" aria-label="Flowcharts" data-reveal style="--delay: 220">
+        <span class="tab-indicator" id="tab-indicator"></span>
+        <button type="button" class="tab is-active" role="tab" id="tab-built" aria-controls="panel-built" aria-selected="true" data-hash="built">
+            {{ icon('code', 16) }}<span>How it was built</span>
+        </button>
+        <button type="button" class="tab" role="tab" id="tab-inside" aria-controls="panel-inside" aria-selected="false" tabindex="-1" data-hash="inside">
+            {{ icon('cpu', 16) }}<span>How it works inside</span>
+        </button>
+        <button type="button" class="tab" role="tab" id="tab-user" aria-controls="panel-user" aria-selected="false" tabindex="-1" data-hash="user-flow">
+            {{ icon('user', 16) }}<span>User flow</span>
+        </button>
+    </div>
+
+    <!-- 1. How the project was built -->
+    <section class="panel is-active" id="panel-built" role="tabpanel" aria-labelledby="tab-built">
+        <p class="panel-lead">The project was built in 11 small steps. Each step added one part of the RAG pipeline and was tested before the next one started.</p>
+        <div class="flow">
+            <div class="flow-start">{{ icon('flag', 16) }} Empty folder</div>
+            {{ arrow() }}
+            <div class="flow-phase"><span>Phase 1: Foundation</span></div>
+            {{ node("Project setup", "Folders, a Python 3.12 virtual environment, the libraries, and Ollama with the llama3.2:3b model.", 1, "requirements.txt") }}
+            {{ arrow() }}
+            {{ node("Document loading", "Read every PDF page by page with pdfplumber and keep the filename and page number with each page.", 2, "src/loader.py") }}
+            {{ arrow() }}
+            {{ node("Chunking", "Split each page into chunks of 100 words, with 20 words shared between neighbours, so no idea is cut in half.", 3, "src/chunker.py") }}
+            {{ arrow() }}
+            <div class="flow-phase"><span>Phase 2: Search</span></div>
+            {{ node("Embeddings", "Turn every chunk into 384 numbers that describe its meaning, with the all-MiniLM-L6-v2 model.", 4, "src/embedder.py") }}
+            {{ arrow() }}
+            {{ node("Vector database", "Store the vectors in a FAISS index and save it to disk next to the chunk text.", 5, "src/vector_store.py") }}
+            {{ arrow() }}
+            {{ node("Retrieval", "Turn the question into numbers the same way and find the K chunks with the closest meaning.", 6, "src/retriever.py") }}
+            {{ arrow() }}
+            <div class="flow-phase"><span>Phase 3: Answering</span></div>
+            {{ node("Prompt construction", "Give the model clear rules, the numbered chunks as sources, and the question.", 7, "src/prompt_builder.py") }}
+            {{ arrow() }}
+            {{ node("Generation", "llama3.2:3b writes the answer through Ollama, with a low temperature (0.1) so it stays factual.", 8, "src/generator.py") }}
+            {{ arrow() }}
+            <div class="flow-phase"><span>Phase 4: Product</span></div>
+            {{ node("Flask backend", "JSON routes to upload papers, build the index, ask questions and read the chat history.", 9, "app.py") }}
+            {{ arrow() }}
+            {{ node("Dashboard", "These pages, written in plain HTML, CSS and JavaScript, so they also work without internet.", 10, "templates/, static/") }}
+            {{ arrow() }}
+            {{ node("Testing and release", "Test scripts, README, one-click setup scripts and CI checks on Windows, macOS and Linux.", 11, "tests/, .github/") }}
+            {{ arrow() }}
+            <div class="flow-end">{{ icon('check', 16) }} Working local RAG assistant</div>
+        </div>
+    </section>
+
+    <!-- 2. How it works inside -->
+    <section class="panel" id="panel-inside" role="tabpanel" aria-labelledby="tab-inside" hidden>
+        <p class="panel-lead">Three programs talk to each other, all on your own computer (127.0.0.1). Then two pipelines do the real work.</p>
+
+        <div class="arch">
+            <div class="arch-box">
+                <span class="node-icon">{{ icon('home', 18) }}</span>
+                <strong>Browser</strong>
+                <span>This dashboard</span>
+            </div>
+            <div class="arch-link"><b>JSON</b><i></i><i></i></div>
+            <div class="arch-box arch-main">
+                <span class="node-icon">{{ icon('code', 18) }}</span>
+                <strong>Flask server</strong>
+                <span>app.py + src/</span>
+                <small>reads index/ and chats/</small>
+            </div>
+            <div class="arch-link"><b>Ollama API</b><i></i><i></i></div>
+            <div class="arch-box">
+                <span class="node-icon">{{ icon('cpu', 18) }}</span>
+                <strong>Ollama</strong>
+                <span>llama3.2:3b</span>
+            </div>
+        </div>
+
+        <div class="lanes">
+            <div class="lane">
+                <div class="lane-head">
+                    <span class="badge badge-cyan">Build index</span>
+                    <h3>When you click Build index</h3>
+                    <p>Runs once after you add papers. Route: <code>POST /process</code></p>
+                </div>
+                <div class="flow">
+                    {{ node("PDFs in data/", "The papers you uploaded.", "A1") }}
+                    {{ arrow() }}
+                    {{ node("Extract text per page", "pdfplumber reads each page and keeps its page number.", "A2") }}
+                    {{ arrow() }}
+                    {{ node("Split into chunks", "100 words each, 20 words of overlap, never across two pages.", "A3") }}
+                    {{ arrow() }}
+                    {{ node("Embed every chunk", "all-MiniLM-L6-v2 turns each chunk into 384 numbers.", "A4") }}
+                    {{ arrow() }}
+                    {{ node("Save the FAISS index", "Vectors in index/faiss.index, text and pages in index/chunks.json.", "A5") }}
+                </div>
+            </div>
+
+            <div class="lane">
+                <div class="lane-head">
+                    <span class="badge badge-cyan">Ask</span>
+                    <h3>When you ask a question</h3>
+                    <p>Runs for every question, in about 1 to 2 seconds. Route: <code>POST /ask</code></p>
+                </div>
+                <div class="flow">
+                    {{ node("Your question", "Plus the paper you picked (or all papers) and K.", "B1") }}
+                    {{ arrow() }}
+                    {{ node("Embed the question", "Same model, so the question gets 384 numbers too.", "B2") }}
+                    {{ arrow() }}
+                    {{ node("Search the index", "FAISS finds the K closest chunks in the index from step A5 (about 10 ms).", "B3") }}
+                    {{ arrow() }}
+                    {{ node("Build the prompt", "Rules, the chunks as [Source 1], [Source 2] and so on, then the question.", "B4") }}
+                    {{ arrow() }}
+                    {{ node("llama3.2:3b answers", "It may only use the sources. If they do not help, it says it could not find it.", "B5") }}
+                    {{ arrow() }}
+                    {{ node("Answer on screen", "With the sources, their pages and scores. The chat is saved in chats/.", "B6") }}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. User flow -->
+    <section class="panel" id="panel-user" role="tabpanel" aria-labelledby="tab-user" hidden>
+        <p class="panel-lead">What a user can do on the dashboard, from the first visit to finding an old chat again.</p>
+        <div class="flow">
+            <div class="flow-start">{{ icon('user', 16) }} Open the dashboard</div>
+            {{ arrow() }}
+            {{ node("Status check", "The pill at the top right shows if the index and Ollama are ready.", icon_name="search") }}
+            {{ arrow() }}
+            {{ decision("Is Ollama running?", "Start the Ollama app", "Then come back to the page. The status updates by itself.") }}
+            {{ arrow("Yes") }}
+            {{ decision("Are your papers indexed?", "Upload and build", "Click the clip button or drop PDFs on the page, then click Build index.") }}
+            {{ arrow("Yes") }}
+            {{ node("Pick a paper", "Choose one paper at the top, or keep All papers. Each paper gets its own chats.", icon_name="file") }}
+            {{ arrow() }}
+            {{ node("Ask a question", "Type it and press Enter. Choose how many chunks the model reads (1, 3 or 5).", icon_name="chat") }}
+            {{ arrow() }}
+            {{ decision("Is the answer in the papers?", "You see \"not found\"", "Try other words, or start a new chat about a different paper.") }}
+            {{ arrow("Yes") }}
+            {{ node("Check the sources", "Click a number like 1 in the answer, or open a source, to read the exact paragraph and page.", icon_name="book") }}
+            {{ arrow() }}
+            {{ node("Keep going", "Ask more questions in the same chat, or click New chat.", icon_name="plus") }}
+            {{ arrow() }}
+            <div class="flow-end">{{ icon('history', 16) }} Every chat is saved on the History page, grouped by paper</div>
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/how.js') }}"></script>{% endblock %}
