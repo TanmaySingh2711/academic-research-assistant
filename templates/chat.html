@@ -7,10 +7,8 @@
 {% block content %}
 <div class="chat-layout" id="chat-layout">
 
-    <!-- Sidebar: new chat, then every paper with its own chats inside a dropdown -->
+    <!-- Sidebar: "All papers" holds every paper, and every paper holds its own chats -->
     <aside class="sidebar" id="sidebar" aria-label="Papers and their chats">
-        <button type="button" class="btn btn-primary new-chat" id="new-chat">{{ icon('plus', 16) }} New chat</button>
-
         <section class="side-section">
             <div class="side-heading">
                 <span>Papers</span>
@@ -21,7 +19,7 @@
                 <button type="button" class="btn btn-ghost btn-small" id="build-button">{{ icon('database', 15) }} Build index</button>
             </div>
             <p class="build-progress" id="build-progress" role="status" hidden>
-                <span class="spinner"></span>Building the index, about 15 seconds...
+                <span class="spinner"></span><span id="build-progress-text">Building the index, about 15 seconds...</span>
             </p>
             <ul class="paper-tree" id="paper-list">
                 <li class="side-empty"><span class="skeleton" style="width: 80%"></span></li>
@@ -91,6 +89,19 @@
             </form>
             <p class="composer-hint">Enter to send, Shift+Enter for a new line. Each question is answered on its own, only from your papers.</p>
         </div>
+
+        <!-- "Are you sure?" box for deleting a chat or a paper (filled by chat.js) -->
+        <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+            <form method="dialog">
+                <div class="dialog-icon">{{ icon('trash', 20) }}</div>
+                <h2 id="confirm-title">Delete?</h2>
+                <p id="confirm-message"></p>
+                <div class="dialog-actions">
+                    <button type="submit" value="cancel" class="btn btn-ghost">Cancel</button>
+                    <button type="submit" value="ok" class="btn btn-danger" id="confirm-ok">Delete</button>
+                </div>
+            </form>
+        </dialog>
 
         <input type="file" id="file-input" accept=".pdf,application/pdf" multiple hidden>
         <div class="drop-overlay" id="drop-overlay" hidden>

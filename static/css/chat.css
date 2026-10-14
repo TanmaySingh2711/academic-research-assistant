@@ -30,10 +30,6 @@
     overflow-y: auto;
 }
 
-.new-chat {
-    width: 100%;
-}
-
 .side-section {
     display: flex;
     flex-direction: column;
@@ -171,6 +167,206 @@
 .new-in-paper:hover {
     background: var(--cyan-soft);
     color: var(--cyan);
+}
+
+/* "All papers": the top dropdown that holds every paper */
+.paper-root > .paper-row .side-item-title {
+    font-weight: 700;
+}
+
+/* Papers sit only a little to the right of "All papers", so their names have room */
+.paper-root > .paper-chats > .paper-children {
+    gap: 4px;
+    margin-left: 10px;
+    padding-left: 3px;
+}
+
+/* A chat inside a paper: the chat button and its "..." menu button */
+.chat-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.chat-item {
+    flex: 1;
+    min-width: 0;
+}
+
+/* The "+" and "..." buttons appear only when the row is hovered or focused,
+   so the rest of the time the paper or chat name can use the whole width */
+.more-btn {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+}
+
+.paper-row .paper-add,
+.paper-row .more-btn,
+.chat-row .more-btn {
+    display: none;
+    animation: fadeIn 0.15s;
+}
+
+.paper-row:hover .paper-add,
+.paper-row:hover .more-btn,
+.paper-row:focus-within .paper-add,
+.paper-row:focus-within .more-btn,
+.chat-row:hover .more-btn,
+.chat-row:focus-within .more-btn,
+.more-btn[aria-expanded="true"] {
+    display: grid;
+}
+
+/* Touch screens have no hover, so the buttons are always shown there */
+@media (hover: none) {
+    .paper-row .paper-add,
+    .paper-row .more-btn,
+    .chat-row .more-btn {
+        display: grid;
+    }
+}
+
+/* Renaming a chat: the name becomes a text box */
+.chat-row.is-renaming .chat-item,
+.chat-row.is-renaming .more-btn {
+    display: none;
+}
+
+.rename-input {
+    flex: 1;
+    min-width: 0;
+    margin: 2px 0;
+    padding: 7px 10px;
+    border: 1px solid var(--cyan);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    outline: none;
+    box-shadow: 0 0 0 3px var(--cyan-soft);
+}
+
+/* ---------- Menu next to a "..." button ---------- */
+
+.menu {
+    position: fixed;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    min-width: 170px;
+    padding: 5px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface-2);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    animation: menuIn 0.16s var(--ease);
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+    background: var(--surface-3);
+    outline: none;
+}
+
+.menu-item .icon {
+    color: var(--text-muted);
+}
+
+.menu-item.is-danger,
+.menu-item.is-danger .icon {
+    color: var(--bad);
+}
+
+.menu-item.is-danger:hover {
+    background: rgba(248, 113, 113, 0.12);
+}
+
+/* ---------- "Are you sure?" box ---------- */
+
+.dialog {
+    width: min(420px, calc(100vw - 32px));
+    padding: 24px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.dialog[open] {
+    animation: dialogIn 0.22s var(--ease);
+}
+
+.dialog::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+}
+
+.dialog h2 {
+    margin: 14px 0 6px;
+    font-size: 1.15rem;
+}
+
+.dialog p {
+    margin: 0 0 22px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    word-break: break-word;
+}
+
+.dialog-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 12px;
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--bad);
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-danger {
+    background: var(--bad);
+    color: #1f0505;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #fca5a5;
+    box-shadow: 0 0 22px rgba(248, 113, 113, 0.35);
+}
+
+@keyframes menuIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes dialogIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to { opacity: 1; transform: none; }
 }
 
 .side-item {

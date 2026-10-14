@@ -1,31 +1,33 @@
 // Assistant page: chat with your papers, in the style of ChatGPT, Claude and Gemini.
-// Every chat belongs to one paper (or to all papers) and is saved on the server in chats/.
+// Every chat belongs to one paper and is saved on the server in chats/.
 // SECURITY: all text from the server goes in with textContent (through App.el), never innerHTML.
 
 const $ = (id) => document.getElementById(id);
 const { el, icon, api, paperName } = App;
 
-// Remember which paper dropdowns are open, only in this browser (a small convenience)
+// Remember which dropdowns are open, only in this browser (a small convenience)
 const EXPANDED_KEY = "research-assistant.open-papers";
+const ROOT_KEY = "__all__"; // the "All papers" dropdown that holds every paper
 
 const state = {
     status: null, // last answer of /status (null = server offline)
     chatId: null, // open chat, or null for a new chat
-    chatPaper: null, // paper of the open chat (null = all papers)
-    selectedPaper: null, // paper chosen for a new chat (null = all papers)
+    chatPaper: null, // paper of the open chat
+    selectedPaper: null, // paper chosen for a new chat
     busy: false, // waiting for an answer
-    building: false, // the index is being built
+    building: false, // the index is being built (Build index, or after deleting a paper)
     newUploads: [], // papers uploaded in this visit that are not indexed yet
-    listsLoaded: false, // the sidebar lists animate in only the first time
+    listsLoaded: false, // the sidebar animates in only the first time
     chats: [], // summaries of all saved chats, newest first
-    expanded: loadExpanded(), // papers whose dropdown is open ("" = All papers)
+    expanded: loadExpanded(), // dropdowns that are open: ROOT_KEY and paper filenames
 };
 
 function loadExpanded() {
     try {
-        return new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY)) || []);
+        const saved = localStorage.getItem(EXPANDED_KEY);
+        return new Set(saved ? JSON.parse(saved) : [ROOT_KEY]); // "All papers" starts open
     } catch {
-        return new Set();
+        return new Set([ROOT_KEY]);
     }
 }
 
@@ -37,19 +39,23 @@ function saveExpanded() {
     }
 }
 
+// Open the dropdown of a paper (and "All papers" around it), so its chats are visible
 function expandPaper(paper) {
-    state.expanded.add(paper || "");
+    state.expanded.add(ROOT_KEY);
+    if (paper) state.expanded.add(paper);
     saveExpanded();
 }
 
 const isIndexed = (paper) => Boolean(state.status && state.status.indexed_papers.includes(paper));
+const firstIndexedPaper = () => (state.status && state.status.indexed_papers[0]) || null;
 const currentPaper = () => (state.chatId ? state.chatPaper : state.selectedPaper);
 
 // ---------- Status, papers, paper selector and notices ----------
 
 async function refreshStatus() {
     state.status = await App.getStatus(true);
-    if (state.selectedPaper && !isIndexed(state.selectedPaper)) state.selectedPaper = null;
+    // A new chat always needs a paper: keep the chosen one, or take the first indexed paper
+    if (!isIndexed(state.selectedPaper)) state.selectedPaper = firstIndexedPaper();
     renderPapers();
     renderPaperSelect();
     renderNotice();
@@ -64,15 +70,12 @@ function unindexedPapers() {
 
 // ---------- Sidebar: every paper with its chats in a dropdown ----------
 
-// The paper list, with "All papers" first. Papers that were removed from data/ but still
-// have chats are kept at the end, so those chats can still be opened.
+// Papers for the sidebar. Papers that were removed from data/ by hand but still have chats
+// are kept at the end, so those chats can still be read or deleted.
 function sidebarPapers() {
     const s = state.status;
     const inData = s ? s.pdfs_in_data : [];
-    const papers = [];
-    const hasAllChats = state.chats.some((chat) => !chat.paper);
-    if ((s && s.index_ready) || hasAllChats) papers.push({ key: "", kind: "all" });
-    for (const paper of inData) papers.push({ key: paper, kind: isIndexed(paper) ? "indexed" : "new" });
+    const papers = inData.map((paper) => ({ key: paper, kind: isIndexed(paper) ? "indexed" : "new" }));
     for (const chat of state.chats) {
         if (chat.paper && !inData.includes(chat.paper) && !papers.some((p) => p.key === chat.paper)) {
             papers.push({ key: chat.paper, kind: "removed" });
@@ -81,6 +84,7 @@ function sidebarPapers() {
     return papers;
 }
 
+// "All papers" is one dropdown that holds every paper; each paper holds its own chats
 function renderPapers() {
     const list = $("paper-list");
     const s = state.status;
@@ -91,37 +95,75 @@ function renderPapers() {
         list.replaceChildren(el("li", "side-empty", s ? "No papers yet. Upload a PDF to start." : "Server offline."));
         return;
     }
-    list.replaceChildren(...papers.map((paper, i) => paperNode(paper, i)));
+
+    const open = state.expanded.has(ROOT_KEY);
+    const root = el("li", "paper-node paper-root");
+    root.classList.toggle("is-open", open);
+    if (!state.listsLoaded) root.classList.add("animate-in");
+
+    const toggle = el("button", "paper-toggle");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", String(open));
+    const text = el("span", "side-item-text");
+    text.append(el("span", "side-item-title", "All papers"),
+        el("span", "side-item-sub", `${papers.length} paper${papers.length === 1 ? "" : "s"}`));
+    toggle.append(icon("chevron", 14), icon("layers", 16), text);
+    toggle.addEventListener("click", () => toggleExpand(ROOT_KEY, root, toggle));
+    const row = el("div", "paper-row");
+    row.append(toggle);
+
+    const children = el("ul", "paper-chats-list paper-children");
+    papers.forEach((paper, i) => children.append(paperNode(paper, i)));
+    const dropdown = el("div", "paper-chats");
+    dropdown.append(children);
+    root.append(row, dropdown);
+
+    list.replaceChildren(root);
     state.listsLoaded = true;
     markActiveChat();
 }
 
-// One paper: a row that opens or closes its dropdown, a "+" for a new chat, and its chats
+// A small round button with three dots that opens a menu
+function moreButton(label, items) {
+    const button = el("button", "icon-btn more-btn");
+    button.type = "button";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.setAttribute("aria-haspopup", "menu");
+    button.append(icon("more", 15));
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openMenu(button, items());
+    });
+    return button;
+}
+
+// One paper: a row that opens or closes its dropdown, "+" for a new chat, a menu, and its chats
 function paperNode({ key, kind }, i) {
-    const chats = state.chats.filter((chat) => (chat.paper || "") === key);
-    const canChat = kind === "indexed" || (kind === "all" && Boolean(state.status && state.status.index_ready));
-    const name = kind === "all" ? "All papers" : paperName(key);
+    const chats = state.chats.filter((chat) => chat.paper === key);
+    const canChat = kind === "indexed";
+    const name = paperName(key);
     const open = state.expanded.has(key);
 
     const node = el("li", "paper-node");
     node.classList.toggle("is-open", open);
-    node.classList.toggle("is-current", (currentPaper() || "") === key);
+    node.classList.toggle("is-current", currentPaper() === key);
     if (!state.listsLoaded) {
         node.classList.add("animate-in");
-        node.style.animationDelay = `${i * 40}ms`;
+        node.style.animationDelay = `${(i + 1) * 40}ms`;
     }
 
     // Row: chevron, icon, name, and how many chats
     const toggle = el("button", "paper-toggle");
     toggle.type = "button";
-    toggle.title = kind === "all" ? "Chats that search every paper" : key;
+    toggle.title = key;
     toggle.setAttribute("aria-expanded", String(open));
     const sub = kind === "new" ? "Not indexed yet"
         : kind === "removed" ? "Removed from data/"
             : `${chats.length} chat${chats.length === 1 ? "" : "s"}`;
     const text = el("span", "side-item-text");
     text.append(el("span", "side-item-title", name), el("span", "side-item-sub", sub));
-    toggle.append(icon("chevron", 14), icon(kind === "all" ? "layers" : "file", 16), text);
+    toggle.append(icon("chevron", 14), icon("file", 16), text);
     if (kind === "new") toggle.append(el("span", "badge badge-warn", "New"));
     toggle.addEventListener("click", () => toggleExpand(key, node, toggle));
 
@@ -132,37 +174,27 @@ function paperNode({ key, kind }, i) {
     add.setAttribute("aria-label", add.title);
     add.append(icon("plus", 15));
     add.addEventListener("click", () => {
-        startNewChat(key || null);
+        startNewChat(key);
         closeSidebar();
     });
 
     const row = el("div", "paper-row");
     row.append(toggle, add);
+    if (kind !== "removed") {
+        row.append(moreButton(`More options for ${name}`, () => [
+            { label: "Delete paper", iconName: "trash", danger: true, action: () => deletePaper(key) },
+        ]));
+    }
 
     // Dropdown: the chats of this paper, newest first, then "New chat"
     const items = el("ul", "paper-chats-list");
-    for (const chat of chats) {
-        const button = el("button", "side-item chat-item");
-        button.type = "button";
-        button.dataset.chat = chat.id;
-        const chatText = el("span", "side-item-text");
-        chatText.append(el("span", "side-item-title", chat.title),
-            el("span", "side-item-sub", App.relativeTime(chat.updated_at)));
-        button.append(icon("chat", 14), chatText);
-        button.addEventListener("click", () => {
-            openChat(chat.id);
-            closeSidebar();
-        });
-        const item = el("li");
-        item.append(button);
-        items.append(item);
-    }
+    for (const chat of chats) items.append(chatRow(chat));
     if (canChat) {
         const newChat = el("button", "side-item new-in-paper");
         newChat.type = "button";
         newChat.append(icon("plus", 14), el("span", "", "New chat"));
         newChat.addEventListener("click", () => {
-            startNewChat(key || null);
+            startNewChat(key);
             closeSidebar();
         });
         const item = el("li");
@@ -176,6 +208,27 @@ function paperNode({ key, kind }, i) {
     dropdown.append(items);
     node.append(row, dropdown);
     return node;
+}
+
+// One chat inside a paper: open it, or use its menu to rename or delete it
+function chatRow(chat) {
+    const item = el("li", "chat-row");
+    const button = el("button", "side-item chat-item");
+    button.type = "button";
+    button.dataset.chat = chat.id;
+    const text = el("span", "side-item-text");
+    text.append(el("span", "side-item-title", chat.title),
+        el("span", "side-item-sub", App.relativeTime(chat.updated_at)));
+    button.append(icon("chat", 14), text);
+    button.addEventListener("click", () => {
+        openChat(chat.id);
+        closeSidebar();
+    });
+    item.append(button, moreButton("More options for this chat", () => [
+        { label: "Rename", iconName: "edit", action: () => startRename(chat, item) },
+        { label: "Delete chat", iconName: "trash", danger: true, action: () => deleteChat(chat) },
+    ]));
+    return item;
 }
 
 // Open or close one dropdown (the CSS animates the height)
@@ -192,7 +245,7 @@ function toggleExpand(key, node, toggle) {
 function renderPaperSelect() {
     const select = $("paper-select");
     const s = state.status;
-    const options = [new Option("All papers", "")];
+    const options = [];
     for (const paper of s ? s.pdfs_in_data : []) {
         const option = new Option(isIndexed(paper) ? paperName(paper) : `${paperName(paper)} (not indexed yet)`, paper);
         option.disabled = !isIndexed(paper);
@@ -201,10 +254,15 @@ function renderPaperSelect() {
     // An old chat can be about a paper that was removed from data/ later
     const paper = currentPaper();
     if (paper && !options.some((o) => o.value === paper)) options.push(new Option(paperName(paper), paper));
+    if (!options.length) {
+        const empty = new Option("No papers yet", "");
+        empty.disabled = true;
+        options.push(empty);
+    }
 
     select.replaceChildren(...options);
     select.value = paper || "";
-    select.disabled = state.chatId !== null;
+    select.disabled = state.chatId !== null || !paper;
     $("paper-select-wrap").title = state.chatId
         ? "This chat is about this paper. Start a new chat to ask about another one."
         : "Which paper the assistant reads";
@@ -258,11 +316,9 @@ function renderEmptyState() {
     const ready = Boolean(state.status && state.status.index_ready);
     $("setup-steps").hidden = ready;
     const paper = currentPaper();
-    $("empty-scope").textContent = !ready
+    $("empty-scope").textContent = !ready || !paper
         ? "Upload a paper and build the index to start."
-        : paper
-            ? `Asking about ${paperName(paper)}. Type your own question, or pick one below.`
-            : "Asking about all your papers. Pick one paper at the top to see suggested questions about it.";
+        : `Asking about ${paperName(paper)}. Type your own question, or pick one below.`;
     renderSuggestions(ready ? paper : null);
 }
 
@@ -328,10 +384,10 @@ async function renderSuggestions(paper) {
 function updateComposer() {
     const ready = Boolean(state.status && state.status.index_ready);
     const paper = currentPaper();
-    $("send-button").disabled = !$("question").value.trim() || !ready || state.busy;
-    $("question").placeholder = !ready
+    $("send-button").disabled = !$("question").value.trim() || !ready || !paper || state.busy;
+    $("question").placeholder = !ready || !paper
         ? "Upload a paper and build the index first..."
-        : paper ? "Ask about this paper..." : "Ask about your papers...";
+        : "Ask about this paper...";
 }
 
 // ---------- Saved chats ----------
@@ -353,11 +409,12 @@ function markActiveChat() {
 
 // ---------- Opening and starting chats ----------
 
+// A new, empty chat about one paper (the first indexed paper if none is given)
 function startNewChat(paper = null, { push = true } = {}) {
     if (state.busy) return;
     state.chatId = null;
     state.chatPaper = null;
-    state.selectedPaper = paper && isIndexed(paper) ? paper : null;
+    state.selectedPaper = isIndexed(paper) ? paper : isIndexed(state.selectedPaper) ? state.selectedPaper : firstIndexedPaper();
     expandPaper(state.selectedPaper); // show this paper's chats in the sidebar
     $("thread").replaceChildren();
     if (push) history.pushState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
@@ -401,7 +458,7 @@ async function openChat(chatId, { push = true } = {}) {
 async function ask(question) {
     question = question.trim();
     if (!question || state.busy) return;
-    if (!state.status || !state.status.index_ready) {
+    if (!state.status || !state.status.index_ready || !currentPaper()) {
         App.toast("Upload a paper and build the index first.", "error");
         return;
     }
@@ -738,12 +795,18 @@ async function uploadFiles(fileList) {
     }
 }
 
+// Show or hide the "working on the index" line in the sidebar
+function setBuilding(on, text = "Building the index, about 15 seconds...") {
+    state.building = on;
+    $("build-button").disabled = on;
+    $("build-progress-text").textContent = text;
+    $("build-progress").hidden = !on;
+    renderNotice();
+}
+
 async function buildIndex() {
     if (state.building) return;
-    state.building = true;
-    $("build-button").disabled = true;
-    $("build-progress").hidden = false;
-    renderNotice();
+    setBuilding(true);
     try {
         const data = await api("/process", { method: "POST" });
         const s = data.summary; // the numbers are nested under "summary"
@@ -758,12 +821,167 @@ async function buildIndex() {
     } catch (err) {
         App.toast(err.message, "error");
     } finally {
-        state.building = false;
-        $("build-button").disabled = false;
-        $("build-progress").hidden = true;
-        renderNotice();
+        setBuilding(false);
     }
 }
+
+// ---------- Menu, confirm box, rename and delete ----------
+
+let menuElement = null; // the open menu, if any
+let menuAnchor = null; // the "..." button that opened it
+
+function closeMenu() {
+    if (menuElement) menuElement.remove();
+    if (menuAnchor) menuAnchor.setAttribute("aria-expanded", "false");
+    menuElement = null;
+    menuAnchor = null;
+}
+
+// A small menu next to a "..." button. items: [{label, iconName, danger, action}]
+function openMenu(anchor, items) {
+    const sameButton = menuAnchor === anchor;
+    closeMenu();
+    if (sameButton) return; // a second click on the same button closes the menu
+
+    const menu = el("div", "menu");
+    menu.setAttribute("role", "menu");
+    for (const item of items) {
+        const button = el("button", `menu-item${item.danger ? " is-danger" : ""}`);
+        button.type = "button";
+        button.setAttribute("role", "menuitem");
+        button.append(icon(item.iconName, 15), el("span", "", item.label));
+        button.addEventListener("click", () => {
+            closeMenu();
+            item.action();
+        });
+        menu.append(button);
+    }
+    document.body.append(menu);
+
+    // Place it to the right of the button, and keep it inside the window
+    const box = anchor.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(box.right + 6, window.innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(box.top, window.innerHeight - menu.offsetHeight - 8))}px`;
+    menuElement = menu;
+    menuAnchor = anchor;
+    anchor.setAttribute("aria-expanded", "true");
+    menu.querySelector("button").focus();
+}
+
+// "Are you sure?" box. Resolves to true when the user clicks the red button.
+function confirmDialog({ title, message, confirmLabel }) {
+    const dialog = $("confirm-dialog");
+    $("confirm-title").textContent = title;
+    $("confirm-message").textContent = message;
+    $("confirm-ok").textContent = confirmLabel;
+    dialog.returnValue = "";
+    dialog.showModal();
+    return new Promise((resolve) => {
+        dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok"), { once: true });
+    });
+}
+
+// Rename a chat right in the sidebar: Enter saves, Esc cancels
+function startRename(chat, item) {
+    const input = el("input", "rename-input");
+    input.value = chat.title;
+    input.maxLength = 60;
+    input.setAttribute("aria-label", "Chat name");
+    item.classList.add("is-renaming");
+    item.append(input);
+    input.focus();
+    input.select();
+
+    let finished = false;
+    const finish = async (save) => {
+        if (finished) return;
+        finished = true;
+        const title = input.value.trim();
+        if (save && title && title !== chat.title) {
+            try {
+                await api(`/api/chats/${encodeURIComponent(chat.id)}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ title }),
+                });
+                App.toast("Chat renamed.");
+            } catch (err) {
+                App.toast(err.message, "error");
+            }
+        }
+        await loadChats(); // draws the sidebar again with the new name
+    };
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            finish(true);
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            finish(false);
+        }
+    });
+    input.addEventListener("blur", () => finish(true));
+}
+
+async function deleteChat(chat) {
+    const ok = await confirmDialog({
+        title: "Delete this chat?",
+        message: `The chat "${chat.title}" will be deleted. This cannot be undone.`,
+        confirmLabel: "Delete chat",
+    });
+    if (!ok) return;
+    try {
+        await api(`/api/chats/${encodeURIComponent(chat.id)}`, { method: "DELETE" });
+        App.toast("Chat deleted.");
+    } catch (err) {
+        App.toast(err.message, "error");
+        return;
+    }
+    if (state.chatId === chat.id) startNewChat(chat.paper);
+    await loadChats();
+}
+
+// Deletes the PDF and all its chats on the server, which then rebuilds the index without it
+async function deletePaper(paper) {
+    if (state.building || state.busy) {
+        App.toast("Please wait until the current task is finished.", "error");
+        return;
+    }
+    const n = state.chats.filter((chat) => chat.paper === paper).length;
+    const ok = await confirmDialog({
+        title: "Delete this paper?",
+        message: `${paperName(paper)} and its ${n} chat${n === 1 ? "" : "s"} will be deleted, `
+            + "and the index is rebuilt without it. This cannot be undone.",
+        confirmLabel: "Delete paper",
+    });
+    if (!ok) return;
+
+    const wasOpen = currentPaper() === paper;
+    setBuilding(true, "Deleting the paper and updating the index...");
+    try {
+        const data = await api(`/api/papers/${encodeURIComponent(paper)}`, { method: "DELETE" });
+        App.toast(data.message);
+        suggestionCache.delete(paper);
+        state.expanded.delete(paper);
+        saveExpanded();
+        state.newUploads = state.newUploads.filter((p) => p !== paper);
+        await refreshStatus();
+        await loadChats();
+        if (wasOpen) startNewChat(null);
+    } catch (err) {
+        App.toast(err.message, "error");
+    } finally {
+        setBuilding(false);
+    }
+}
+
+document.addEventListener("mousedown", (event) => {
+    if (menuElement && !menuElement.contains(event.target) && !menuAnchor.contains(event.target)) closeMenu();
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMenu();
+});
+window.addEventListener("resize", closeMenu);
 
 // ---------- Small helpers ----------
 
@@ -806,18 +1024,16 @@ $("question").addEventListener("input", () => {
 });
 
 $("paper-select").addEventListener("change", (event) => {
-    if (state.chatId) return;
-    state.selectedPaper = event.target.value || null;
-    history.replaceState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
+    if (state.chatId || !event.target.value) return;
+    state.selectedPaper = event.target.value;
+    expandPaper(state.selectedPaper);
+    history.replaceState({}, "", `/chat?paper=${encodeURIComponent(state.selectedPaper)}`);
     renderPapers();
     renderEmptyState();
     updateComposer();
 });
 
-$("new-chat").addEventListener("click", () => {
-    startNewChat(null);
-    closeSidebar();
-});
+$("sidebar").addEventListener("scroll", closeMenu);
 $("upload-button").addEventListener("click", openFilePicker);
 $("attach-button").addEventListener("click", openFilePicker);
 $("build-button").addEventListener("click", buildIndex);

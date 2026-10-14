@@ -83,6 +83,42 @@ def add_exchange(chats_dir, chat_id, paper, result):
         return chat
 
 
+def rename_chat(chats_dir, chat_id, title):
+    """Give a chat a new title. Raises KeyError if it does not exist, ValueError for an empty title."""
+    title = " ".join(str(title).split())[:TITLE_LENGTH]  # one line, not too long
+    if not title:
+        raise ValueError("The chat name cannot be empty.")
+    with _lock:
+        chat = get_chat(chats_dir, chat_id)
+        chat["title"] = title
+        _save(chats_dir, chat)
+        return chat
+
+
+def delete_chat(chats_dir, chat_id):
+    """Delete one chat. Raises KeyError if it does not exist."""
+    with _lock:
+        path = _path(chats_dir, chat_id)
+        if not path.exists():
+            raise KeyError(chat_id)
+        path.unlink()
+
+
+def delete_chats_for_paper(chats_dir, paper):
+    """Delete every chat about one paper (paper=None: chats about all papers). Returns how many."""
+    deleted = 0
+    with _lock:
+        for path in Path(chats_dir).glob("*.json"):
+            try:
+                chat = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if chat.get("paper") == paper:
+                path.unlink()
+                deleted += 1
+    return deleted
+
+
 def list_chats(chats_dir):
     """Return a short summary of every chat, newest first."""
     found = []  # (file change time, summary) pairs

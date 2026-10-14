@@ -1,4 +1,8 @@
-"""Test the Flask routes with Flask's built-in test client (no browser or server needed)."""
+"""Test the Flask routes with Flask's built-in test client (no browser or server needed).
+
+Everything happens in temporary folders with 3 sample PDFs, so your real data/, index/
+and chats/ folders are never changed (this test also deletes a paper).
+"""
 
 import io
 import json
@@ -6,11 +10,24 @@ import sys
 import tempfile
 from pathlib import Path
 
-from app import app
+import app as app_module
+from tests.make_sample_pdfs import DOCUMENTS, make_pdf
 
-# Save the test chats in a temporary folder, not in the real chats/ folder
-chats_tmp = tempfile.TemporaryDirectory()
-app.config["CHATS_DIR"] = chats_tmp.name
+app = app_module.app
+
+# ---------- Temporary folders with sample papers ----------
+
+temp = tempfile.TemporaryDirectory()
+root = Path(temp.name)
+for folder in ("data", "index", "chats"):
+    (root / folder).mkdir()
+for name, pages in DOCUMENTS.items():
+    make_pdf(root / "data" / name, pages)
+app.config.update(DATA_DIR=root / "data", INDEX_DIR=root / "index", CHATS_DIR=root / "chats")
+app_module.load_index_into_memory()  # nothing there yet, so the app starts without an index
+
+PAPER = "sample_curiosity_agent.pdf"
+OTHER = "sample_load_testing.pdf"
 
 client = app.test_client()
 failures: list[str] = []
@@ -27,83 +44,105 @@ def show(label, response, expected_status, short_answer=False):
     print(json.dumps(body, indent=2, ensure_ascii=False))
     if not ok:
         failures.append(label)
-    return body
+    return body or {}
 
 
-show("GET /status", client.get("/status"), 200)
+def check(ok, label):
+    print(f"  {label:<60} {'OK' if ok else 'FAIL'}")
+    if not ok:
+        failures.append(label)
 
-# Upload one existing PDF (overwritten with the same file) and a fake .txt file
-existing_pdf = sorted(Path("data").glob("*.pdf"))[0]
+
+def ask(label, payload, expected=200):
+    return show(label, client.post("/ask", json=payload), expected, short_answer=True)
+
+
+# ---------- Upload and build ----------
+
+show("GET /status (no index yet)", client.get("/status"), 200)
+
 response = client.post("/upload", content_type="multipart/form-data", data={
     "files": [
-        (io.BytesIO(existing_pdf.read_bytes()), existing_pdf.name),
+        (io.BytesIO((root / "data" / PAPER).read_bytes()), PAPER),
         (io.BytesIO(b"just some notes"), "notes.txt"),
     ],
 })
 body = show("POST /upload (existing PDF + notes.txt)", response, 200)
-if body["saved"] != [existing_pdf.name] or [s["name"] for s in body["skipped"]] != ["notes.txt"]:
-    failures.append("upload: wrong saved/skipped lists")
+check(body.get("saved") == [PAPER] and [s["name"] for s in body.get("skipped", [])] == ["notes.txt"],
+      "upload saves the PDF and skips notes.txt")
 
-# A .pdf name, but the content is plain text
 response = client.post("/upload", content_type="multipart/form-data", data={
     "files": [(io.BytesIO(b"this is not really a pdf"), "fake.pdf")],
 })
 body = show("POST /upload (fake.pdf with text content)", response, 200)
-if body["saved"] or [s["name"] for s in body["skipped"]] != ["fake.pdf"]:
-    failures.append("upload: fake.pdf was not skipped")
+check(not body.get("saved") and [s["name"] for s in body.get("skipped", [])] == ["fake.pdf"],
+      "a .pdf name with text content is skipped")
 
 show("POST /process", client.post("/process"), 200)
-show("GET /status (after process)", client.get("/status"), 200)
+status = show("GET /status (after process)", client.get("/status"), 200)
+check(status.get("indexed_papers") == sorted(DOCUMENTS), "all 3 sample papers are indexed")
 
-show("POST /ask (empty question)", client.post("/ask", json={"question": "   ", "k": 3}), 400)
-show("POST /ask (k=7)", client.post("/ask", json={"question": "What is curiosity?", "k": 7}), 400)
-show("POST /ask (real question, k=3)", client.post("/ask", json={
-    "question": "What reward function does the cautious curiosity agent use?", "k": 3,
-}), 200, short_answer=True)
-# The model's wording can vary, so only the status code is checked here (not_found is printed)
-show("POST /ask (off-topic)", client.post("/ask", json={"question": "What is the capital of France?"}), 200)
+# ---------- Asking (every chat is about one paper) ----------
 
-# ---------- Chat history and asking about one paper ----------
+ask("POST /ask (empty question)", {"question": "   ", "paper": PAPER}, 400)
+ask("POST /ask (k=7)", {"question": "What is curiosity?", "paper": PAPER, "k": 7}, 400)
+ask("POST /ask (no paper)", {"question": "What is curiosity?"}, 400)
+ask("POST /ask (paper not indexed)", {"question": "Hi?", "paper": "missing.pdf"}, 400)
+ask("POST /ask (unknown chat)", {"question": "Hi?", "chat_id": "000000000000"}, 404)
 
-status = client.get("/status").get_json()
-paper = status["indexed_papers"][0]
-body = show("POST /ask (one paper, new chat)", client.post("/ask", json={
-    "question": "What is the main idea of this paper?", "k": 3, "paper": paper,
-}), 200, short_answer=True)
-chat_id = body["chat_id"]
-if body["paper"] != paper or any(s["source"] != paper for s in body["sources"]):
-    failures.append("one paper: sources must all come from the chosen paper")
+first = ask("POST /ask (new chat 1 about the paper)",
+            {"question": "What reward function does the cautious curiosity agent use?", "paper": PAPER, "k": 3})
+chat_1 = first.get("chat_id")
+check(first.get("paper") == PAPER and all(s["source"] == PAPER for s in first.get("sources", [])),
+      "sources all come from the chosen paper")
 
-body = show("POST /ask (follow-up in the same chat)", client.post("/ask", json={
-    "question": "What are the results?", "k": 1, "chat_id": chat_id,
-}), 200, short_answer=True)
-if body["chat_id"] != chat_id or body["paper"] != paper:
-    failures.append("follow-up: must stay in the same chat and paper")
+follow = ask("POST /ask (follow-up in chat 1)", {"question": "How was the agent evaluated?", "chat_id": chat_1, "k": 1})
+check(follow.get("chat_id") == chat_1 and follow.get("paper") == PAPER, "follow-up stays in the same chat and paper")
 
-body = show("GET /api/suggestions (one paper)", client.get(f"/api/suggestions?paper={paper}"), 200)
-if not isinstance(body.get("questions"), list):
-    failures.append("/api/suggestions: expected a list of questions")
+second = ask("POST /ask (new chat 2 about the same paper)", {"question": "What is the main idea?", "paper": PAPER})
+chat_2 = second.get("chat_id")
+check(chat_2 not in (None, chat_1), "a paper can have more than one chat")
+
+# The model's wording can vary, so only the status code is checked for the off-topic question
+ask("POST /ask (off-topic, other paper)", {"question": "What is the capital of France?", "paper": OTHER})
+
+body = show("GET /api/suggestions (one paper)", client.get(f"/api/suggestions?paper={PAPER}"), 200)
+check(isinstance(body.get("questions"), list), "suggestions are a list of questions")
 show("GET /api/suggestions (paper not indexed)", client.get("/api/suggestions?paper=missing.pdf"), 400)
 
-show("POST /ask (paper not indexed)", client.post("/ask", json={"question": "Hi?", "paper": "missing.pdf"}), 400)
-show("POST /ask (unknown chat)", client.post("/ask", json={"question": "Hi?", "chat_id": "000000000000"}), 404)
+# ---------- Chats: list, rename, delete ----------
 
-response = client.get("/api/chats")
-chats = response.get_json()
-print(f"\n### GET /api/chats\nstatus {response.status_code}, {len(chats)} chats")
+chats = client.get("/api/chats").get_json()
+print(f"\n### GET /api/chats: {len(chats)} chats")
 for chat in chats:
-    print(f"  {chat['id']} | {chat['questions']} question(s) | paper={chat['paper']} | {chat['title']}")
-if response.status_code != 200 or len(chats) != 3:
-    failures.append("/api/chats: expected 3 chats (2 all-papers chats + 1 paper chat)")
+    print(f"  {chat['id']} | {chat['questions']} question(s) | {chat['paper']} | {chat['title']}")
+check(len(chats) == 3 and sum(chat["paper"] == PAPER for chat in chats) == 2, "3 chats, 2 of them about the paper")
 
-response = client.get(f"/api/chats/{chat_id}")
-messages = response.get_json().get("messages", [])
-print(f"\n### GET /api/chats/{chat_id}\nstatus {response.status_code}, {len(messages)} messages")
-if response.status_code != 200 or len(messages) != 4:
-    failures.append("/api/chats/<id>: expected 4 messages (2 questions, 2 answers)")
+response = client.patch(f"/api/chats/{chat_1}", json={"title": "  My renamed chat "})
+body = show("PATCH /api/chats/<chat 1> (rename)", response, 200)
+check(body.get("title") == "My renamed chat", "the new name is saved (spaces trimmed)")
+show("PATCH /api/chats/<chat 1> (empty name)", client.patch(f"/api/chats/{chat_1}", json={"title": "   "}), 400)
+show("PATCH /api/chats/<unknown>", client.patch("/api/chats/000000000000", json={"title": "x"}), 404)
 
+show("DELETE /api/chats/<chat 2>", client.delete(f"/api/chats/{chat_2}"), 200)
+show("GET /api/chats/<chat 2> (after delete)", client.get(f"/api/chats/{chat_2}"), 404)
 show("GET /api/chats/<bad id>", client.get("/api/chats/..%2Fapp"), 404)
-chats_tmp.cleanup()
+
+messages = client.get(f"/api/chats/{chat_1}").get_json().get("messages", [])
+check(len(messages) == 4, "chat 1 still has 2 questions and 2 answers")
+
+# ---------- Delete a paper: its PDF and chats go, the index is rebuilt ----------
+
+body = show(f"DELETE /api/papers/{PAPER}", client.delete(f"/api/papers/{PAPER}"), 200)
+check(body.get("chats_deleted") == 1, "the paper's remaining chat was deleted with it")
+check(not (root / "data" / PAPER).exists(), "the PDF file is gone")
+status = client.get("/status").get_json()
+check(PAPER not in status["indexed_papers"] and len(status["indexed_papers"]) == 2, "the index was rebuilt without it")
+check(all(chat["paper"] != PAPER for chat in client.get("/api/chats").get_json()), "no chats about the paper are left")
+show("DELETE /api/papers/<not there>", client.delete("/api/papers/missing.pdf"), 404)
+show("DELETE /api/papers/<unsafe name>", client.delete("/api/papers/..%2Fapp.py"), 404)
+
+temp.cleanup()
 
 if failures:
     sys.exit(f"{len(failures)} check(s) failed: {failures}")

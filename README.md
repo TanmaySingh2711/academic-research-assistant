@@ -11,7 +11,9 @@ Everything runs on your own computer: no API keys, no paid services and no cloud
 - A 3-page dashboard in a black and cyan theme: Overview, Assistant and How it works
 - Chat interface in the style of ChatGPT, Claude and Gemini: message bubbles, a typing effect, Enter to send
 - Upload PDFs with the clip button or by dropping them on the page, then build the search index with one click
-- Ask about one paper or about all papers; each paper gets its own chats
+- Every chat is about one paper, and a paper can have many chats
+- Sidebar: "All papers" holds every paper, and every paper is a dropdown with its own chats
+- Rename and delete chats, and delete papers (the paper's chats are deleted too and the index is rebuilt)
 - Suggested questions for each paper: the local model reads the start of the paper and writes a few questions about it
 - Sources for every answer: paper, page and similarity score; click a citation number to open the exact chunk text
 - Chat history saved on your computer and listed by paper in the assistant's sidebar
@@ -167,13 +169,14 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 | Page | URL | What you do there |
 |---|---|---|
 | Overview | `/` | Read what the project is, which models it uses and how a PDF becomes an answer |
-| Assistant | `/chat` | Upload PDFs (clip button or drag and drop), click **Build index**, pick a paper or All papers, ask, and find old chats in the sidebar |
+| Assistant | `/chat` | Upload PDFs (clip button or drag and drop), click **Build index**, start a chat about a paper, ask, and manage papers and chats in the sidebar |
 | How it works | `/how-it-works` | Three flowcharts: how it was built, how it works inside, and the user flow |
 
 1. On the Assistant page, upload one or more PDFs.
 2. Click **Build index**. For 3 papers this took about 13 to 19 seconds on a CPU.
-3. Pick a paper at the top (or keep All papers). For one paper, the assistant suggests a few questions about it (a few seconds the first time). Click one, or type your own question and press Enter.
-4. Open the sources under the answer to check the exact text. Each chat is saved in the sidebar, grouped by paper.
+3. Open a paper in the sidebar and click **New chat** (or **+**). The assistant suggests a few questions about that paper (a few seconds the first time). Click one, or type your own question and press Enter.
+4. Open the sources under the answer to check the exact text. Each chat is saved in the sidebar, under its paper.
+5. Use the **...** button next to a chat to rename or delete it, or next to a paper to delete the paper with all its chats.
 
 To rebuild the index from the terminal instead (for example after copying PDFs into `data/` by hand):
 ```
@@ -251,7 +254,7 @@ Test set: 3 research papers (27 pages, 302 chunks). Everything ran on a CPU (no 
 - **Neighbouring chunks can both be retrieved.** Because of the 20-word overlap, two results can share part of their text.
 - **Local, single-user app.** It uses Flask's development server on 127.0.0.1, with no login. It is not meant to be put on the internet.
 - **Upload limit of 25 MB per request** (all files in one upload together).
-- **No delete button.** To remove a paper, delete it from `data/` and build the index again. To remove a chat, delete its file from `chats/`.
+- **Deleting a paper rebuilds the whole index** (about 15 seconds for a few papers), because the simple Flat index is rebuilt from the remaining PDFs. Its chats are deleted too.
 - **File names change on upload.** Spaces and special characters become underscores (`secure_filename`).
 
 ## Possible improvements
@@ -286,7 +289,7 @@ python -m tests.test_dashboard        # the 4 pages, static files, no long dashe
 Notes:
 
 - Most tests need papers in `data/` and a built index (`python build_index.py`). Without your own papers, `python -m tests.make_sample_pdfs` puts 3 small sample PDFs in `data/` (this is what CI does).
-- `test_app` rebuilds the index and re-uploads one PDF from `data/` (it overwrites it with the same file).
+- `test_app` works only in temporary folders with its own sample PDFs, so it never changes your `data/`, `index/` or `chats/`.
 - Stop the running app before running the tests if you want port 5000 free; the tests themselves do not use the port.
 - A test script exits with an error code when one of its checks fails, so CI can detect it. LLM answers are printed but not checked word by word, because their wording can change between runs.
 

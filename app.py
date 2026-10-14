@@ -1,4 +1,4 @@
-"""Flask backend: dashboard pages plus a JSON API to upload PDFs, build the index, ask and see chat history."""
+"""Flask backend: dashboard pages plus a JSON API for papers, the index, questions and chats."""
 
 import threading
 from pathlib import Path
@@ -7,25 +7,26 @@ from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
-from src.chat_store import add_exchange, get_chat, list_chats
+from src.chat_store import add_exchange, delete_chat, delete_chats_for_paper, get_chat, list_chats, rename_chat
 from src.embedder import load_model
 from src.ingest import run_ingestion
 from src.rag_pipeline import answer_question
 from src.retriever import check_model_matches
-from src.suggestions import get_suggestions
-from src.vector_store import load_store
+from src.suggestions import SUGGESTIONS_FILE, get_suggestions
+from src.vector_store import CHUNKS_FILE, INDEX_FILE, INFO_FILE, load_store
 
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
-INDEX_DIR = BASE_DIR / "index"
 ALLOWED_K = (1, 3, 5)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB per upload request
-app.config["CHATS_DIR"] = BASE_DIR / "chats"  # one JSON file per chat (tests point this to a temp folder)
+# Folders (tests point these to temporary folders, so they never touch your real files)
+app.config["DATA_DIR"] = BASE_DIR / "data"  # uploaded PDFs
+app.config["INDEX_DIR"] = BASE_DIR / "index"  # FAISS index, chunk text, suggested questions
+app.config["CHATS_DIR"] = BASE_DIR / "chats"  # one JSON file per chat
 app.config["WARM_UP_MODEL"] = True  # load the embedding model in the background after the first request
 
-# Only one /process request may rebuild the index at a time
+# Only one request at a time may rebuild the index (Build index, or deleting a paper)
 process_lock = threading.Lock()
 
 # The loaded store as one tuple (index, chunks, info), or None if there is no index yet.
@@ -33,17 +34,37 @@ process_lock = threading.Lock()
 store = None
 
 
+def data_dir():
+    return Path(app.config["DATA_DIR"])
+
+
+def index_dir():
+    return Path(app.config["INDEX_DIR"])
+
+
+def chats_dir():
+    return Path(app.config["CHATS_DIR"])
+
+
 def load_index_into_memory():
     """Load the saved index from disk into memory. Leaves store as None if there is no index."""
     global store
     try:
-        index, chunks, info = load_store(INDEX_DIR)
+        index, chunks, info = load_store(index_dir())
         check_model_matches(info)
         store = (index, chunks, info)
         print(f"Index loaded: {len(chunks)} chunks.")
     except (FileNotFoundError, ValueError) as e:
         store = None
         print(f"No index loaded: {e}")
+
+
+def clear_index():
+    """Remove the saved index (used when the last paper is deleted)."""
+    global store
+    for name in (INDEX_FILE, CHUNKS_FILE, INFO_FILE, SUGGESTIONS_FILE):
+        (index_dir() / name).unlink(missing_ok=True)
+    store = None
 
 
 def error(message, status):
@@ -77,6 +98,11 @@ def indexed_papers(current):
     return sorted({chunk["source"] for chunk in current[1]}) if current else []
 
 
+def pdfs_in_data():
+    folder = data_dir()
+    return sorted(p.name for p in folder.glob("*") if p.suffix.lower() == ".pdf") if folder.exists() else []
+
+
 # ---------- Pages ----------
 
 @app.get("/")
@@ -94,8 +120,7 @@ def how_it_works():
     return render_template("how_it_works.html")
 
 
-# ---------- JSON API ----------
-
+# ---------- Papers ----------
 
 @app.post("/upload")
 def upload():
@@ -103,7 +128,7 @@ def upload():
     if not files:
         return error("No files uploaded. Choose one or more PDF files.", 400)
 
-    DATA_DIR.mkdir(exist_ok=True)
+    data_dir().mkdir(exist_ok=True)
     saved, skipped, overwritten = [], [], []
 
     for f in files:
@@ -124,7 +149,7 @@ def upload():
             skipped.append({"name": f.filename, "reason": "Invalid filename"})
             continue
 
-        path = DATA_DIR / name
+        path = data_dir() / name
         if path.exists():
             overwritten.append(name)
         f.save(path)
@@ -143,7 +168,7 @@ def upload():
 def process():
     with process_lock:
         try:
-            summary = run_ingestion(DATA_DIR, INDEX_DIR)
+            summary = run_ingestion(data_dir(), index_dir())
         except ValueError as e:  # no PDFs, or no text in any PDF
             return error(str(e), 400)
         load_index_into_memory()
@@ -154,11 +179,42 @@ def process():
     })
 
 
+@app.delete("/api/papers/<name>")
+def delete_paper(name):
+    """Delete a paper: its PDF, all its chats, and rebuild the index without it."""
+    path = data_dir() / name
+    # Only plain file names of PDFs in data/ (no paths like "../app.py")
+    if name != secure_filename(name) or not name.lower().endswith(".pdf") or not path.is_file():
+        return error("Paper not found.", 404)
+
+    with process_lock:
+        path.unlink()
+        chats_deleted = delete_chats_for_paper(chats_dir(), name)
+        summary = None
+        if pdfs_in_data():
+            try:
+                summary = run_ingestion(data_dir(), index_dir())
+                load_index_into_memory()
+            except ValueError:  # the other PDFs have no text (for example scanned)
+                clear_index()
+        else:
+            clear_index()  # that was the last paper
+
+    return jsonify({
+        "deleted": name,
+        "chats_deleted": chats_deleted,
+        "summary": summary,
+        "message": f"Deleted the paper and {chats_deleted} chat{'' if chats_deleted == 1 else 's'}.",
+    })
+
+
+# ---------- Asking ----------
+
 @app.post("/ask")
 def ask():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
-        return error("Send JSON like {\"question\": \"...\", \"k\": 3}.", 400)
+        return error("Send JSON like {\"question\": \"...\", \"paper\": \"paper.pdf\", \"k\": 3}.", 400)
 
     question = data.get("question", "")
     if not isinstance(question, str) or not question.strip():
@@ -173,26 +229,25 @@ def ask():
         return error("No index yet. Upload PDFs and click Build index first.", 409)
     index, chunks, _ = current
 
-    # An existing chat keeps its own paper; a new chat uses the paper sent by the page (None = all papers)
-    chats_dir = app.config["CHATS_DIR"]
+    # Every chat is about one paper. An existing chat keeps its paper; a new chat uses the paper sent by the page.
     chat_id = data.get("chat_id")
     if chat_id is not None:
         try:
-            paper = get_chat(chats_dir, chat_id)["paper"]
+            paper = get_chat(chats_dir(), chat_id)["paper"]
         except KeyError:
             return error("This chat was not found. Start a new chat.", 404)
     else:
-        paper = data.get("paper") or None
-        if paper is not None and paper not in indexed_papers(current):
-            return error("This paper is not in the index yet. Click Build index first.", 400)
+        paper = data.get("paper")
+    if paper not in indexed_papers(current):
+        return error("Pick a paper that is in the index. If it is new, click Build index first.", 400)
 
     try:
         result = answer_question(question.strip(), index, chunks, k=k, source=paper)
     except (ConnectionError, RuntimeError) as e:  # Ollama not running / model not downloaded
         return error(str(e), 503)
 
-    chat = add_exchange(chats_dir, chat_id, paper, result)
-    return jsonify({**result, "chat_id": chat["id"], "paper": paper})
+    chat = add_exchange(chats_dir(), chat_id, paper, result)
+    return jsonify({**result, "chat_id": chat["id"], "paper": paper, "title": chat["title"]})
 
 
 @app.get("/api/suggestions")
@@ -205,24 +260,52 @@ def suggestions():
     if paper not in indexed_papers(current):
         return error("This paper is not in the index yet. Click Build index first.", 400)
     try:
-        questions = get_suggestions(paper, current[1], current[2], INDEX_DIR)
+        questions = get_suggestions(paper, current[1], current[2], index_dir())
     except (ConnectionError, RuntimeError) as e:  # Ollama not running / model not downloaded
         return error(str(e), 503)
     return jsonify({"paper": paper, "questions": questions})
 
 
+# ---------- Chats ----------
+
 @app.get("/api/chats")
 def chats():
-    return jsonify(list_chats(app.config["CHATS_DIR"]))
+    return jsonify(list_chats(chats_dir()))
 
 
 @app.get("/api/chats/<chat_id>")
 def chat_detail(chat_id):
     try:
-        return jsonify(get_chat(app.config["CHATS_DIR"], chat_id))
+        return jsonify(get_chat(chats_dir(), chat_id))
     except KeyError:
         return error("Chat not found.", 404)
 
+
+@app.patch("/api/chats/<chat_id>")
+def chat_rename(chat_id):
+    data = request.get_json(silent=True)
+    title = data.get("title") if isinstance(data, dict) else None
+    if not isinstance(title, str):
+        return error("Send JSON like {\"title\": \"New name\"}.", 400)
+    try:
+        chat = rename_chat(chats_dir(), chat_id, title)
+    except KeyError:
+        return error("Chat not found.", 404)
+    except ValueError as e:
+        return error(str(e), 400)
+    return jsonify({"id": chat["id"], "title": chat["title"]})
+
+
+@app.delete("/api/chats/<chat_id>")
+def chat_delete(chat_id):
+    try:
+        delete_chat(chats_dir(), chat_id)
+    except KeyError:
+        return error("Chat not found.", 404)
+    return jsonify({"deleted": chat_id})
+
+
+# ---------- Status ----------
 
 @app.get("/status")
 def status():
@@ -235,13 +318,11 @@ def status():
     except Exception:
         ollama_running = False
 
-    pdfs = sorted(p.name for p in DATA_DIR.glob("*") if p.suffix.lower() == ".pdf") if DATA_DIR.exists() else []
-
     return jsonify({
         "index_ready": current is not None,
         "chunks": len(current[1]) if current else 0,
         "built_at": current[2].get("built_at") if current else None,
-        "pdfs_in_data": pdfs,
+        "pdfs_in_data": pdfs_in_data(),
         "indexed_papers": indexed_papers(current),
         "ollama_running": ollama_running,
     })
