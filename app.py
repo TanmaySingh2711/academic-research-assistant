@@ -1,5 +1,6 @@
 """Flask backend: dashboard pages plus a JSON API for papers, the index, questions and chats."""
 
+import socket
 import threading
 from pathlib import Path
 
@@ -307,16 +308,27 @@ def chat_delete(chat_id):
 
 # ---------- Status ----------
 
-@app.get("/status")
-def status():
-    current = store
+def is_ollama_running():
+    """True if the Ollama server answers on its default address (127.0.0.1:11434)."""
+    # Quick port check first: on Windows, connecting to a closed port takes about 2 seconds
+    # (Windows retries), which would make every status check slow while Ollama is off.
+    try:
+        socket.create_connection(("127.0.0.1", 11434), timeout=0.3).close()
+    except OSError:
+        return False
     try:
         import ollama  # imported here so the app starts faster
 
-        ollama.list()  # needs the Ollama server
-        ollama_running = True
+        ollama.list()  # something answers on the port: check that it really is Ollama
+        return True
     except Exception:
-        ollama_running = False
+        return False
+
+
+@app.get("/status")
+def status():
+    current = store
+    ollama_running = is_ollama_running()
 
     return jsonify({
         "index_ready": current is not None,

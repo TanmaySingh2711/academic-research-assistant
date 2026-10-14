@@ -7,7 +7,7 @@ Set-Location $root
 $Host.UI.RawUI.WindowTitle = "Academic Research Assistant"
 
 $port = 5000
-$url = "http://127.0.0.1:$port"  # the same as http://localhost:5000
+$url = "http://localhost:$port"
 $python = Join-Path $root "venv\Scripts\python.exe"
 
 function Exit-AfterKey($code) {
@@ -18,13 +18,22 @@ function Exit-AfterKey($code) {
 }
 
 function Test-Port($number) {
-    # True if something is listening on 127.0.0.1:$number (connection refused returns at once)
+    # True if something is listening on 127.0.0.1:$number. Waits at most 0.3 s: on Windows a
+    # closed port can otherwise take about 2 seconds to answer (Windows retries the connection).
     $client = New-Object System.Net.Sockets.TcpClient
-    try { $client.Connect("127.0.0.1", $number); return $true } catch { return $false } finally { $client.Close() }
+    try {
+        $attempt = $client.BeginConnect("127.0.0.1", $number, $null, $null)
+        return $attempt.AsyncWaitHandle.WaitOne(300) -and $client.Connected
+    } catch {
+        return $false
+    } finally {
+        $client.Close()
+    }
 }
 
 # Returns the process of THIS project's server if it is the one using the port, else $null.
-# Our server is "python -m flask --app app run" or "python app.py", started from this project's venv.
+# Our server is "python scripts/serve.py", "python -m flask --app app run" or "python app.py",
+# started from this project's venv.
 function Get-OurServer($number) {
     $listener = Get-NetTCPConnection -LocalPort $number -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $listener) { return $null }
@@ -33,7 +42,7 @@ function Get-OurServer($number) {
     $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.ParentProcessId)" -ErrorAction SilentlyContinue
     foreach ($p in @($parent, $process)) {
         if ($p -and $p.ExecutablePath -and $p.ExecutablePath.StartsWith((Join-Path $root "venv"), "OrdinalIgnoreCase") `
-                -and $p.CommandLine -match "flask --app app run|app\.py") {
+                -and $p.CommandLine -match "serve\.py|flask --app app run|app\.py") {
             return $p
         }
     }
@@ -81,7 +90,8 @@ if (-not (Test-Port 11434)) {
 }
 
 # ---------- 3. Start the server right away (fast mode) ----------
-# - flask run without debug: the app starts once (debug mode starts it twice)
+# - scripts/serve.py: no debug mode (the app starts once) and it listens on both 127.0.0.1 and ::1,
+#   so http://localhost:5000 opens without waiting
 # - the embedding model loads in the background after the page opens (see app.py)
 # - Hugging Face offline mode when the model is already downloaded: no online checks
 $env:PYTHONIOENCODING = "utf-8"
@@ -90,10 +100,10 @@ $hfHub = if ($env:HF_HOME) { Join-Path $env:HF_HOME "hub" } else { Join-Path $HO
 if (Test-Path (Join-Path $hfHub "models--sentence-transformers--all-MiniLM-L6-v2")) { $env:HF_HUB_OFFLINE = "1" }
 
 Write-Host "Starting the server..."
-Write-Host "Dashboard: $url  (also http://localhost:$port)"
+Write-Host "Dashboard: $url"
 Write-Host "Press Esc to stop the server and close this window."
 Write-Host ""
-$server = Start-Process -FilePath $python -ArgumentList "-m flask --app app run --host 127.0.0.1 --port $port" -NoNewWindow -PassThru
+$server = Start-Process -FilePath $python -ArgumentList "scripts\serve.py" -NoNewWindow -PassThru
 
 # ---------- 4. Center this window (while the server starts) ----------
 Add-Type -Namespace Win32 -Name Window -MemberDefinition @"

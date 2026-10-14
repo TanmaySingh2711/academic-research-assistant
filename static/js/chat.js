@@ -57,7 +57,6 @@ async function refreshStatus() {
     // A new chat always needs a paper: keep the chosen one, or take the first indexed paper
     if (!isIndexed(state.selectedPaper)) state.selectedPaper = firstIndexedPaper();
     renderPapers();
-    renderPaperSelect();
     renderNotice();
     renderEmptyState();
     updateComposer();
@@ -186,22 +185,12 @@ function paperNode({ key, kind }, i) {
         ]));
     }
 
-    // Dropdown: the chats of this paper, newest first, then "New chat"
+    // Dropdown: the chats of this paper, newest first (the "+" in the row starts a new one)
     const items = el("ul", "paper-chats-list");
     for (const chat of chats) items.append(chatRow(chat));
-    if (canChat) {
-        const newChat = el("button", "side-item new-in-paper");
-        newChat.type = "button";
-        newChat.append(icon("plus", 14), el("span", "", "New chat"));
-        newChat.addEventListener("click", () => {
-            startNewChat(key);
-            closeSidebar();
-        });
-        const item = el("li");
-        item.append(newChat);
-        items.append(item);
-    } else if (!chats.length) {
-        items.append(el("li", "side-empty", "Build the index to chat about this paper."));
+    if (!chats.length) {
+        items.append(el("li", "side-empty", canChat ? "No chats yet. Click + to start one."
+            : "Build the index to chat about this paper."));
     }
 
     const dropdown = el("div", "paper-chats");
@@ -239,33 +228,6 @@ function toggleExpand(key, node, toggle) {
     saveExpanded();
     node.classList.toggle("is-open", open);
     toggle.setAttribute("aria-expanded", String(open));
-}
-
-// The "paper" dropdown at the top. An open chat keeps its paper, so the dropdown is locked.
-function renderPaperSelect() {
-    const select = $("paper-select");
-    const s = state.status;
-    const options = [];
-    for (const paper of s ? s.pdfs_in_data : []) {
-        const option = new Option(isIndexed(paper) ? paperName(paper) : `${paperName(paper)} (not indexed yet)`, paper);
-        option.disabled = !isIndexed(paper);
-        options.push(option);
-    }
-    // An old chat can be about a paper that was removed from data/ later
-    const paper = currentPaper();
-    if (paper && !options.some((o) => o.value === paper)) options.push(new Option(paperName(paper), paper));
-    if (!options.length) {
-        const empty = new Option("No papers yet", "");
-        empty.disabled = true;
-        options.push(empty);
-    }
-
-    select.replaceChildren(...options);
-    select.value = paper || "";
-    select.disabled = state.chatId !== null || !paper;
-    $("paper-select-wrap").title = state.chatId
-        ? "This chat is about this paper. Start a new chat to ask about another one."
-        : "Which paper the assistant reads";
 }
 
 // One short message above the message box, for the most important problem
@@ -418,7 +380,6 @@ function startNewChat(paper = null, { push = true } = {}) {
     expandPaper(state.selectedPaper); // show this paper's chats in the sidebar
     $("thread").replaceChildren();
     if (push) history.pushState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
-    renderPaperSelect();
     renderPapers();
     renderEmptyState();
     markActiveChat();
@@ -445,7 +406,6 @@ async function openChat(chatId, { push = true } = {}) {
         else addAssistantMessage(message);
     }
     if (push) history.pushState({}, "", `/chat?chat=${chat.id}`);
-    renderPaperSelect();
     renderPapers();
     renderEmptyState();
     markActiveChat();
@@ -488,7 +448,6 @@ async function ask(question) {
         state.chatPaper = data.paper;
         expandPaper(data.paper);
         if (isNewChat) history.pushState({}, "", `/chat?chat=${data.chat_id}`);
-        renderPaperSelect();
         renderPapers();
         addAssistantMessage(data, { animate: true });
         loadChats();
@@ -1023,15 +982,6 @@ $("question").addEventListener("input", () => {
     updateComposer();
 });
 
-$("paper-select").addEventListener("change", (event) => {
-    if (state.chatId || !event.target.value) return;
-    state.selectedPaper = event.target.value;
-    expandPaper(state.selectedPaper);
-    history.replaceState({}, "", `/chat?paper=${encodeURIComponent(state.selectedPaper)}`);
-    renderPapers();
-    renderEmptyState();
-    updateComposer();
-});
 
 $("sidebar").addEventListener("scroll", closeMenu);
 $("upload-button").addEventListener("click", openFilePicker);

@@ -73,6 +73,7 @@ academic-research-assistant/
 |-- .github/                CI workflow and the Ollama setup step it uses
 |-- scripts/
 |   |-- run_dashboard.ps1   Launcher used by run_dashboard.bat
+|   |-- serve.py            Runs the app on http://localhost:5000
 |   `-- configure_venv.py   Sends the project's Python cache files to .cache/pycache/
 |-- src/
 |   |-- loader.py           Read PDFs page by page and clean the text
@@ -153,16 +154,18 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 
 ## How to run
 
-**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://127.0.0.1:5000 (the same as http://localhost:5000) when the server is ready (about 3 seconds), and **Esc** stops the server and closes the window. If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the embedding model and `llama3.2:3b` load in the background, so the first answer is fast too.
+**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://localhost:5000 when the server is ready (about 3 seconds), and **Esc** stops the server and closes the window. If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the embedding model and `llama3.2:3b` load in the background, so the first answer is fast too.
 
 **Any OS, from a terminal:**
 
 1. Start the app from the project folder (with the venv active):
    ```
-   python app.py
+   python scripts/serve.py
    ```
-2. Open http://127.0.0.1:5000 in your browser.
+2. Open http://localhost:5000 in your browser.
 3. Stop the server with Ctrl+C in the terminal.
+
+`scripts/serve.py` listens on both 127.0.0.1 and ::1, because browsers on Windows try ::1 first for `localhost`; without it, `localhost` pages would wait for that to fail. For development with automatic reload, `python app.py` also works (debug mode, http://127.0.0.1:5000).
 
 **Using the dashboard:**
 
@@ -174,7 +177,7 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 
 1. On the Assistant page, upload one or more PDFs.
 2. Click **Build index**. For 3 papers this took about 13 to 19 seconds on a CPU.
-3. Open a paper in the sidebar and click **New chat** (or **+**). The assistant suggests a few questions about that paper (a few seconds the first time). Click one, or type your own question and press Enter.
+3. In the sidebar, click **+** next to a paper to start a new chat about it. The assistant suggests a few questions about that paper (a few seconds the first time). Click one, or type your own question and press Enter.
 4. Open the sources under the answer to check the exact text. Each chat is saved in the sidebar, under its paper.
 5. Use the **...** button next to a chat to rename or delete it, or next to a paper to delete the paper with all its chats.
 
@@ -252,7 +255,7 @@ Test set: 3 research papers (27 pages, 302 chunks). Everything ran on a CPU (no 
 - **Noisy text from PDF layout.** Tables, formulas, reference lists, repeated page headers, publisher cover pages and rotated watermarks come out as noisy text (for example `a r X i v : 2 2 0 6 ...`). Repeated headers that contain the paper title can also raise the score of unrelated chunks from that paper.
 - **Some chunks are cut at the token limit.** 7 of 302 chunks are longer than the 256 tokens the embedding model reads, so their ends are ignored during search (6 reference-list chunks and 1 results table).
 - **Neighbouring chunks can both be retrieved.** Because of the 20-word overlap, two results can share part of their text.
-- **Local, single-user app.** It uses Flask's development server on 127.0.0.1, with no login. It is not meant to be put on the internet.
+- **Local, single-user app.** It uses Flask's development server on localhost (127.0.0.1 and ::1), with no login. It is not meant to be put on the internet.
 - **Upload limit of 25 MB per request** (all files in one upload together).
 - **Deleting a paper rebuilds the whole index** (about 15 seconds for a few papers), because the simple Flat index is rebuilt from the remaining PDFs. Its chats are deleted too.
 - **File names change on upload.** Spaces and special characters become underscores (`secure_filename`).

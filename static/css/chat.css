@@ -158,17 +158,6 @@
     padding: 6px 8px;
 }
 
-.new-in-paper {
-    padding: 6px 8px;
-    color: var(--cyan);
-    font-size: 0.82rem;
-}
-
-.new-in-paper:hover {
-    background: var(--cyan-soft);
-    color: var(--cyan);
-}
-
 /* "All papers": the top dropdown that holds every paper */
 .paper-root > .paper-row .side-item-title {
     font-weight: 700;
@@ -193,8 +182,8 @@
     min-width: 0;
 }
 
-/* The "+" and "..." buttons appear only when the row is hovered or focused,
-   so the rest of the time the paper or chat name can use the whole width */
+/* "+" (new chat) is always shown. The "..." buttons appear only when the row is hovered
+   or focused, so the rest of the time the paper or chat name has more room. */
 .more-btn {
     flex: none;
     width: 28px;
@@ -202,16 +191,13 @@
     border-radius: 8px;
 }
 
-.paper-row .paper-add,
 .paper-row .more-btn,
 .chat-row .more-btn {
     display: none;
     animation: fadeIn 0.15s;
 }
 
-.paper-row:hover .paper-add,
 .paper-row:hover .more-btn,
-.paper-row:focus-within .paper-add,
 .paper-row:focus-within .more-btn,
 .chat-row:hover .more-btn,
 .chat-row:focus-within .more-btn,
@@ -221,7 +207,6 @@
 
 /* Touch screens have no hover, so the buttons are always shown there */
 @media (hover: none) {
-    .paper-row .paper-add,
     .paper-row .more-btn,
     .chat-row .more-btn {
         display: grid;
