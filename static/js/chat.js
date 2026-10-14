@@ -6,7 +6,8 @@ const $ = (id) => document.getElementById(id);
 const { el, icon, api, paperName } = App;
 
 // Remember which dropdowns are open, only in this browser (a small convenience)
-const EXPANDED_KEY = "research-assistant.open-papers";
+// ("v2": the earlier version opened papers by itself, so its saved state is not reused)
+const EXPANDED_KEY = "research-assistant.open-papers-v2";
 const ROOT_KEY = "__all__"; // the "All papers" dropdown that holds every paper
 
 const state = {
@@ -152,19 +153,27 @@ function paperNode({ key, kind }, i) {
         node.style.animationDelay = `${(i + 1) * 40}ms`;
     }
 
-    // Row: chevron, icon, name, and how many chats
-    const toggle = el("button", "paper-toggle");
-    toggle.type = "button";
-    toggle.title = key;
-    toggle.setAttribute("aria-expanded", String(open));
+    // Chevron: only opens or closes the dropdown with this paper's chats
+    const chevron = el("button", "icon-btn paper-chevron");
+    chevron.type = "button";
+    chevron.title = open ? "Hide chats" : "Show chats";
+    chevron.setAttribute("aria-label", `Show or hide the chats of ${name}`);
+    chevron.setAttribute("aria-expanded", String(open));
+    chevron.append(icon("chevron", 14));
+    chevron.addEventListener("click", () => toggleExpand(key, node, chevron));
+
+    // The paper itself: click it to select it, like a project in ChatGPT, Claude or Gemini
+    const pick = el("button", "paper-toggle paper-pick");
+    pick.type = "button";
+    pick.title = canChat ? `Ask about ${name}` : key;
     const sub = kind === "new" ? "Not indexed yet"
         : kind === "removed" ? "Removed from data/"
             : `${chats.length} chat${chats.length === 1 ? "" : "s"}`;
     const text = el("span", "side-item-text");
     text.append(el("span", "side-item-title", name), el("span", "side-item-sub", sub));
-    toggle.append(icon("chevron", 14), icon("file", 16), text);
-    if (kind === "new") toggle.append(el("span", "badge badge-warn", "New"));
-    toggle.addEventListener("click", () => toggleExpand(key, node, toggle));
+    pick.append(icon("file", 16), text);
+    if (kind === "new") pick.append(el("span", "badge badge-warn", "New"));
+    pick.addEventListener("click", () => selectPaper(key, kind, chats.length));
 
     const add = el("button", "icon-btn paper-add");
     add.type = "button";
@@ -178,7 +187,7 @@ function paperNode({ key, kind }, i) {
     });
 
     const row = el("div", "paper-row");
-    row.append(toggle, add);
+    row.append(chevron, pick, add);
     if (kind !== "removed") {
         row.append(moreButton(`More options for ${name}`, () => [
             { label: "Delete paper", iconName: "trash", danger: true, action: () => deletePaper(key) },
@@ -221,13 +230,26 @@ function chatRow(chat) {
 }
 
 // Open or close one dropdown (the CSS animates the height)
-function toggleExpand(key, node, toggle) {
+function toggleExpand(key, node, button) {
     const open = !state.expanded.has(key);
     if (open) state.expanded.add(key);
     else state.expanded.delete(key);
     saveExpanded();
     node.classList.toggle("is-open", open);
-    toggle.setAttribute("aria-expanded", String(open));
+    button.setAttribute("aria-expanded", String(open));
+    if (key !== ROOT_KEY) button.title = open ? "Hide chats" : "Show chats";
+}
+
+// Clicking a paper selects it: a new chat about it, with questions suggested for it.
+// If it already has chats, its dropdown opens so they are easy to find.
+function selectPaper(key, kind, chatCount) {
+    if (kind !== "indexed") {
+        App.toast(kind === "new" ? "Build the index first to chat about this paper." : "This paper was removed.", "error");
+        return;
+    }
+    if (chatCount) expandPaper(key);
+    startNewChat(key);
+    closeSidebar();
 }
 
 // One short message above the message box, for the most important problem
@@ -294,7 +316,8 @@ let suggestionsLoadingFor = null; // paper whose questions are being written rig
 async function renderSuggestions(paper) {
     const box = $("suggest");
     const list = $("suggestions");
-    if (!paper) {
+    // Suggestions are written by the local model, so skip them while Ollama is off
+    if (!paper || (state.status && !state.status.ollama_running && !suggestionCache.has(paper))) {
         box.hidden = true;
         suggestionsShownFor = null;
         return;
@@ -377,7 +400,6 @@ function startNewChat(paper = null, { push = true } = {}) {
     state.chatId = null;
     state.chatPaper = null;
     state.selectedPaper = isIndexed(paper) ? paper : isIndexed(state.selectedPaper) ? state.selectedPaper : firstIndexedPaper();
-    expandPaper(state.selectedPaper); // show this paper's chats in the sidebar
     $("thread").replaceChildren();
     if (push) history.pushState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
     renderPapers();

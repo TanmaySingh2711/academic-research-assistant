@@ -108,15 +108,34 @@
     color: var(--cyan);
 }
 
-/* The chevron points right when closed and down when open */
-.paper-toggle .icon-chevron {
+/* The paper itself is selected by clicking its name; it is highlighted while selected */
+.paper-pick {
+    padding-left: 2px;
+}
+
+/* The chevron points right when closed and down when open.
+   The ">" signs matter: they only look at this node's own row, not at papers inside it. */
+.paper-row .icon-chevron {
     color: var(--text-faint);
     transform: rotate(-90deg);
     transition: transform 0.25s var(--ease);
 }
 
-.paper-node.is-open .paper-toggle .icon-chevron {
+.paper-node.is-open > .paper-row .icon-chevron {
     transform: none;
+}
+
+/* Small button that only opens or closes the dropdown of a paper */
+.paper-chevron {
+    flex: none;
+    width: 24px;
+    height: 28px;
+    margin-left: 2px;
+    border-radius: 7px;
+}
+
+.paper-chevron:hover .icon-chevron {
+    color: var(--cyan);
 }
 
 .paper-add {
@@ -134,7 +153,7 @@
     transition: grid-template-rows 0.3s var(--ease);
 }
 
-.paper-node.is-open .paper-chats {
+.paper-node.is-open > .paper-chats {
     grid-template-rows: 1fr;
 }
 
@@ -148,7 +167,7 @@
     transition: opacity 0.25s, padding 0.3s var(--ease);
 }
 
-.paper-node.is-open .paper-chats-list {
+.paper-node.is-open > .paper-chats > .paper-chats-list {
     padding-top: 4px;
     padding-bottom: 4px;
     opacity: 1;
