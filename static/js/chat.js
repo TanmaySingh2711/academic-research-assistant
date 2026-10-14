@@ -295,22 +295,21 @@ function renderEmptyState() {
     renderSuggestions(indexed ? paper : null);
 }
 
-// Build index follows the selected paper: greyed out when that paper is already indexed,
-// active when it is new (or changed since the last build). With no paper selected (the
-// default page) it is active when any paper is waiting. Building always indexes every
-// paper in data/, so the other papers are simply indexed again too.
+// Build index follows the selected paper: active only when the selected paper is new
+// (or changed since the last build). Greyed out on the default page (no paper selected)
+// and when the selected paper is already indexed. Building always indexes every paper
+// in data/, so the other papers are simply indexed again too.
 function updateBuildButton() {
     const s = state.status;
     const waiting = s ? s.papers_to_index : [];
     const paper = currentPaper();
-    const needed = paper ? waiting.includes(paper) : waiting.length > 0;
+    const needed = Boolean(paper) && waiting.includes(paper);
     const button = $("build-button");
     button.disabled = state.building || !needed;
     button.title = state.building ? "Building the index..."
-        : needed
-            ? paper ? `Index ${paperName(paper)}` : `Index ${waiting.length} new or changed paper${waiting.length === 1 ? "" : "s"}`
+        : needed ? `Index ${paperName(paper)}`
             : paper ? "This paper is already indexed"
-                : s && s.pdfs_in_data.length ? "All papers are already indexed" : "Upload a PDF first";
+                : "Select a new paper to build its index";
 }
 
 // ---------- Suggested questions for the selected paper ----------
