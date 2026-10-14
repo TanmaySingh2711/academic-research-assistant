@@ -7,8 +7,8 @@
 {% block content %}
 <div class="chat-layout" id="chat-layout">
 
-    <!-- Sidebar: new chat, papers, recent chats -->
-    <aside class="sidebar" id="sidebar" aria-label="Papers and chats">
+    <!-- Sidebar: new chat, then every paper with its own chats inside a dropdown -->
+    <aside class="sidebar" id="sidebar" aria-label="Papers and their chats">
         <button type="button" class="btn btn-primary new-chat" id="new-chat">{{ icon('plus', 16) }} New chat</button>
 
         <section class="side-section">
@@ -16,9 +16,6 @@
                 <span>Papers</span>
                 <span class="badge badge-muted" id="paper-count">0</span>
             </div>
-            <ul class="paper-list" id="paper-list">
-                <li class="side-empty"><span class="skeleton" style="width: 80%"></span></li>
-            </ul>
             <div class="side-actions">
                 <button type="button" class="btn btn-ghost btn-small" id="upload-button">{{ icon('upload', 15) }} Upload PDF</button>
                 <button type="button" class="btn btn-ghost btn-small" id="build-button">{{ icon('database', 15) }} Build index</button>
@@ -26,15 +23,9 @@
             <p class="build-progress" id="build-progress" role="status" hidden>
                 <span class="spinner"></span>Building the index, about 15 seconds...
             </p>
-        </section>
-
-        <section class="side-section side-chats">
-            <div class="side-heading">
-                <span>Chats</span>
-                <span class="badge badge-muted" id="chat-count">0</span>
-            </div>
-            <!-- Every saved chat, grouped by paper -->
-            <div class="chat-groups" id="chat-groups"></div>
+            <ul class="paper-tree" id="paper-list">
+                <li class="side-empty"><span class="skeleton" style="width: 80%"></span></li>
+            </ul>
         </section>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>

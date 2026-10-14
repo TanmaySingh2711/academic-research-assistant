@@ -20,7 +20,7 @@ def check(ok, label):
 
 PAGES = {
     "/": ["Ask your research papers", "What this project is", "From PDF to answer"],
-    "/chat": ["New chat", "Upload PDF", "Build index", "What would you like to know?", "Chats"],
+    "/chat": ["New chat", "Papers", "Upload PDF", "Build index", "What would you like to know?"],
     "/how-it-works": ["How it was built", "How it works inside", "User flow"],
 }
 

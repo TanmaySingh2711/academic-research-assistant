@@ -52,20 +52,125 @@
     text-transform: uppercase;
 }
 
-.side-link {
-    font-size: 0.78rem;
-    letter-spacing: 0;
-    text-transform: none;
-}
+/* ---------- Paper tree: every paper with its chats in a dropdown ---------- */
 
-.paper-list,
-.recent-list {
+.paper-tree,
+.paper-chats-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
     margin: 0;
     padding: 0;
     list-style: none;
+}
+
+.paper-tree {
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.paper-node.animate-in {
+    animation: fadeUp 0.35s var(--ease) both;
+}
+
+.paper-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.paper-row:hover {
+    background: var(--surface-2);
+}
+
+/* The paper of the chat on screen */
+.paper-node.is-current > .paper-row {
+    border-color: var(--border-strong);
+    background: var(--surface);
+}
+
+.paper-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 4px 8px 6px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.paper-toggle .icon {
+    color: var(--cyan);
+}
+
+/* The chevron points right when closed and down when open */
+.paper-toggle .icon-chevron {
+    color: var(--text-faint);
+    transform: rotate(-90deg);
+    transition: transform 0.25s var(--ease);
+}
+
+.paper-node.is-open .paper-toggle .icon-chevron {
+    transform: none;
+}
+
+.paper-add {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    margin-right: 4px;
+    border-radius: 8px;
+}
+
+/* Smooth open and close: the row height goes from 0fr to 1fr */
+.paper-chats {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s var(--ease);
+}
+
+.paper-node.is-open .paper-chats {
+    grid-template-rows: 1fr;
+}
+
+.paper-chats-list {
+    min-height: 0;
+    margin-left: 17px;
+    padding-left: 8px;
+    overflow: hidden;
+    border-left: 1px solid var(--border-strong);
+    opacity: 0;
+    transition: opacity 0.25s, padding 0.3s var(--ease);
+}
+
+.paper-node.is-open .paper-chats-list {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    opacity: 1;
+}
+
+.chat-item {
+    padding: 6px 8px;
+}
+
+.new-in-paper {
+    padding: 6px 8px;
+    color: var(--cyan);
+    font-size: 0.82rem;
+}
+
+.new-in-paper:hover {
+    background: var(--cyan-soft);
+    color: var(--cyan);
 }
 
 .side-item {
@@ -83,10 +188,6 @@
     text-align: left;
     cursor: pointer;
     transition: background 0.2s, color 0.2s, border-color 0.2s;
-}
-
-.side-item.animate-in {
-    animation: fadeUp 0.35s var(--ease) both;
 }
 
 .side-item:hover {
@@ -158,37 +259,6 @@
 
 .build-progress[hidden] {
     display: none;
-}
-
-.side-chats {
-    min-height: 0;
-}
-
-/* Chats grouped by paper */
-.chat-groups {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.chat-group-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 10px 2px;
-    color: var(--text-muted);
-    font-size: 0.76rem;
-    font-weight: 600;
-}
-
-.chat-group-head .icon {
-    color: var(--cyan);
-}
-
-.chat-group-head span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .sidebar-backdrop {

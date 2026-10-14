@@ -5,6 +5,9 @@
 const $ = (id) => document.getElementById(id);
 const { el, icon, api, paperName } = App;
 
+// Remember which paper dropdowns are open, only in this browser (a small convenience)
+const EXPANDED_KEY = "research-assistant.open-papers";
+
 const state = {
     status: null, // last answer of /status (null = server offline)
     chatId: null, // open chat, or null for a new chat
@@ -14,7 +17,30 @@ const state = {
     building: false, // the index is being built
     newUploads: [], // papers uploaded in this visit that are not indexed yet
     listsLoaded: false, // the sidebar lists animate in only the first time
+    chats: [], // summaries of all saved chats, newest first
+    expanded: loadExpanded(), // papers whose dropdown is open ("" = All papers)
 };
+
+function loadExpanded() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY)) || []);
+    } catch {
+        return new Set();
+    }
+}
+
+function saveExpanded() {
+    try {
+        localStorage.setItem(EXPANDED_KEY, JSON.stringify([...state.expanded]));
+    } catch {
+        // storage can be blocked (private window); the sidebar still works
+    }
+}
+
+function expandPaper(paper) {
+    state.expanded.add(paper || "");
+    saveExpanded();
+}
 
 const isIndexed = (paper) => Boolean(state.status && state.status.indexed_papers.includes(paper));
 const currentPaper = () => (state.chatId ? state.chatPaper : state.selectedPaper);
@@ -36,45 +62,130 @@ function unindexedPapers() {
     return s ? s.pdfs_in_data.filter((paper) => !s.indexed_papers.includes(paper)) : [];
 }
 
-// Sidebar list of papers. Clicking an indexed paper starts a new chat about it.
+// ---------- Sidebar: every paper with its chats in a dropdown ----------
+
+// The paper list, with "All papers" first. Papers that were removed from data/ but still
+// have chats are kept at the end, so those chats can still be opened.
+function sidebarPapers() {
+    const s = state.status;
+    const inData = s ? s.pdfs_in_data : [];
+    const papers = [];
+    const hasAllChats = state.chats.some((chat) => !chat.paper);
+    if ((s && s.index_ready) || hasAllChats) papers.push({ key: "", kind: "all" });
+    for (const paper of inData) papers.push({ key: paper, kind: isIndexed(paper) ? "indexed" : "new" });
+    for (const chat of state.chats) {
+        if (chat.paper && !inData.includes(chat.paper) && !papers.some((p) => p.key === chat.paper)) {
+            papers.push({ key: chat.paper, kind: "removed" });
+        }
+    }
+    return papers;
+}
+
 function renderPapers() {
     const list = $("paper-list");
     const s = state.status;
-    const papers = s ? s.pdfs_in_data : [];
-    $("paper-count").textContent = papers.length;
+    $("paper-count").textContent = s ? s.pdfs_in_data.length : 0;
 
+    const papers = sidebarPapers();
     if (!papers.length) {
-        list.replaceChildren(el("li", "side-empty", s ? "No papers yet. Upload a PDF." : "Server offline."));
+        list.replaceChildren(el("li", "side-empty", s ? "No papers yet. Upload a PDF to start." : "Server offline."));
         return;
     }
-    list.replaceChildren(...papers.map((paper, i) => {
-        const indexed = isIndexed(paper);
-        const button = el("button", "side-item");
-        button.type = "button";
-        button.title = indexed ? `New chat about ${paperName(paper)}` : "Not searchable yet. Click Build index.";
-        if (!state.listsLoaded) {
-            button.classList.add("animate-in");
-            button.style.animationDelay = `${i * 40}ms`;
-        }
-        const text = el("span", "side-item-text");
-        text.append(el("span", "side-item-title", paperName(paper)),
-            el("span", "side-item-sub", indexed ? "Indexed, click to chat" : "Not indexed yet"));
-        button.append(icon("file", 16), text);
-        if (!indexed) button.append(el("span", "badge badge-warn", "New"));
-        if (state.chatId === null && state.selectedPaper === paper) button.classList.add("is-active");
+    list.replaceChildren(...papers.map((paper, i) => paperNode(paper, i)));
+    state.listsLoaded = true;
+    markActiveChat();
+}
 
+// One paper: a row that opens or closes its dropdown, a "+" for a new chat, and its chats
+function paperNode({ key, kind }, i) {
+    const chats = state.chats.filter((chat) => (chat.paper || "") === key);
+    const canChat = kind === "indexed" || (kind === "all" && Boolean(state.status && state.status.index_ready));
+    const name = kind === "all" ? "All papers" : paperName(key);
+    const open = state.expanded.has(key);
+
+    const node = el("li", "paper-node");
+    node.classList.toggle("is-open", open);
+    node.classList.toggle("is-current", (currentPaper() || "") === key);
+    if (!state.listsLoaded) {
+        node.classList.add("animate-in");
+        node.style.animationDelay = `${i * 40}ms`;
+    }
+
+    // Row: chevron, icon, name, and how many chats
+    const toggle = el("button", "paper-toggle");
+    toggle.type = "button";
+    toggle.title = kind === "all" ? "Chats that search every paper" : key;
+    toggle.setAttribute("aria-expanded", String(open));
+    const sub = kind === "new" ? "Not indexed yet"
+        : kind === "removed" ? "Removed from data/"
+            : `${chats.length} chat${chats.length === 1 ? "" : "s"}`;
+    const text = el("span", "side-item-text");
+    text.append(el("span", "side-item-title", name), el("span", "side-item-sub", sub));
+    toggle.append(icon("chevron", 14), icon(kind === "all" ? "layers" : "file", 16), text);
+    if (kind === "new") toggle.append(el("span", "badge badge-warn", "New"));
+    toggle.addEventListener("click", () => toggleExpand(key, node, toggle));
+
+    const add = el("button", "icon-btn paper-add");
+    add.type = "button";
+    add.disabled = !canChat;
+    add.title = canChat ? `New chat about ${name}` : "Build the index first to chat about this paper";
+    add.setAttribute("aria-label", add.title);
+    add.append(icon("plus", 15));
+    add.addEventListener("click", () => {
+        startNewChat(key || null);
+        closeSidebar();
+    });
+
+    const row = el("div", "paper-row");
+    row.append(toggle, add);
+
+    // Dropdown: the chats of this paper, newest first, then "New chat"
+    const items = el("ul", "paper-chats-list");
+    for (const chat of chats) {
+        const button = el("button", "side-item chat-item");
+        button.type = "button";
+        button.dataset.chat = chat.id;
+        const chatText = el("span", "side-item-text");
+        chatText.append(el("span", "side-item-title", chat.title),
+            el("span", "side-item-sub", App.relativeTime(chat.updated_at)));
+        button.append(icon("chat", 14), chatText);
         button.addEventListener("click", () => {
-            if (!indexed) {
-                App.toast("Build the index first to search this paper.", "error");
-                return;
-            }
-            startNewChat(paper);
+            openChat(chat.id);
             closeSidebar();
         });
         const item = el("li");
         item.append(button);
-        return item;
-    }));
+        items.append(item);
+    }
+    if (canChat) {
+        const newChat = el("button", "side-item new-in-paper");
+        newChat.type = "button";
+        newChat.append(icon("plus", 14), el("span", "", "New chat"));
+        newChat.addEventListener("click", () => {
+            startNewChat(key || null);
+            closeSidebar();
+        });
+        const item = el("li");
+        item.append(newChat);
+        items.append(item);
+    } else if (!chats.length) {
+        items.append(el("li", "side-empty", "Build the index to chat about this paper."));
+    }
+
+    const dropdown = el("div", "paper-chats");
+    dropdown.append(items);
+    node.append(row, dropdown);
+    return node;
+}
+
+// Open or close one dropdown (the CSS animates the height)
+function toggleExpand(key, node, toggle) {
+    const open = !state.expanded.has(key);
+    if (open) state.expanded.add(key);
+    else state.expanded.delete(key);
+    saveExpanded();
+    node.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
 }
 
 // The "paper" dropdown at the top. An open chat keeps its paper, so the dropdown is locked.
@@ -223,70 +334,19 @@ function updateComposer() {
         : paper ? "Ask about this paper..." : "Ask about your papers...";
 }
 
-// ---------- Chat history in the sidebar, grouped by paper ----------
+// ---------- Saved chats ----------
 
 async function loadChats() {
-    let chats = [];
     try {
-        chats = await api("/api/chats"); // newest first
+        state.chats = await api("/api/chats"); // newest first
     } catch {
-        // the list stays empty when the server is offline
+        // keep the last list when the server cannot be reached
     }
-    $("chat-count").textContent = chats.length;
-    const container = $("chat-groups");
-    if (!chats.length) {
-        container.replaceChildren(el("p", "side-empty", "No chats yet. Ask a question to start one."));
-        state.listsLoaded = true;
-        return;
-    }
-
-    // One group per paper; the group with the newest chat comes first
-    const groups = new Map();
-    for (const chat of chats) {
-        const key = chat.paper || "";
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(chat);
-    }
-
-    let i = 0;
-    const blocks = [];
-    for (const [paper, list] of groups) {
-        const block = el("div", "chat-group");
-        const head = el("div", "chat-group-head");
-        head.title = paper || "Chats about all papers";
-        head.append(icon(paper ? "file" : "layers", 13), el("span", "", paperName(paper || null)));
-
-        const items = el("ul", "recent-list");
-        for (const chat of list) {
-            const button = el("button", "side-item");
-            button.type = "button";
-            button.dataset.chat = chat.id;
-            if (!state.listsLoaded) {
-                button.classList.add("animate-in");
-                button.style.animationDelay = `${i++ * 30}ms`;
-            }
-            const text = el("span", "side-item-text");
-            text.append(el("span", "side-item-title", chat.title),
-                el("span", "side-item-sub", App.relativeTime(chat.updated_at)));
-            button.append(icon("chat", 15), text);
-            button.addEventListener("click", () => {
-                openChat(chat.id);
-                closeSidebar();
-            });
-            const item = el("li");
-            item.append(button);
-            items.append(item);
-        }
-        block.append(head, items);
-        blocks.push(block);
-    }
-    container.replaceChildren(...blocks);
-    state.listsLoaded = true;
-    markActiveChat();
+    renderPapers();
 }
 
 function markActiveChat() {
-    document.querySelectorAll("#chat-groups .side-item").forEach((button) => {
+    document.querySelectorAll("#paper-list .chat-item").forEach((button) => {
         button.classList.toggle("is-active", button.dataset.chat === state.chatId);
     });
 }
@@ -298,6 +358,7 @@ function startNewChat(paper = null, { push = true } = {}) {
     state.chatId = null;
     state.chatPaper = null;
     state.selectedPaper = paper && isIndexed(paper) ? paper : null;
+    expandPaper(state.selectedPaper); // show this paper's chats in the sidebar
     $("thread").replaceChildren();
     if (push) history.pushState({}, "", state.selectedPaper ? `/chat?paper=${encodeURIComponent(state.selectedPaper)}` : "/chat");
     renderPaperSelect();
@@ -320,6 +381,7 @@ async function openChat(chatId, { push = true } = {}) {
     }
     state.chatId = chat.id;
     state.chatPaper = chat.paper;
+    expandPaper(chat.paper);
     $("thread").replaceChildren();
     for (const message of chat.messages) {
         if (message.role === "user") addUserMessage(message.content);
@@ -367,6 +429,7 @@ async function ask(question) {
         const isNewChat = state.chatId === null;
         state.chatId = data.chat_id;
         state.chatPaper = data.paper;
+        expandPaper(data.paper);
         if (isNewChat) history.pushState({}, "", `/chat?chat=${data.chat_id}`);
         renderPaperSelect();
         renderPapers();
