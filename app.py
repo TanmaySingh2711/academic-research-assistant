@@ -3,15 +3,16 @@
 import threading
 from pathlib import Path
 
-import ollama
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from src.chat_store import add_exchange, get_chat, list_chats
+from src.embedder import load_model
 from src.ingest import run_ingestion
 from src.rag_pipeline import answer_question
 from src.retriever import check_model_matches
+from src.suggestions import get_suggestions
 from src.vector_store import load_store
 
 BASE_DIR = Path(__file__).parent
@@ -22,6 +23,7 @@ ALLOWED_K = (1, 3, 5)
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB per upload request
 app.config["CHATS_DIR"] = BASE_DIR / "chats"  # one JSON file per chat (tests point this to a temp folder)
+app.config["WARM_UP_MODEL"] = True  # load the embedding model in the background after the first request
 
 # Only one /process request may rebuild the index at a time
 process_lock = threading.Lock()
@@ -49,6 +51,27 @@ def error(message, status):
     return jsonify({"error": message}), status
 
 
+_warm_up_started = False
+
+
+def warm_up_model():
+    """Load the embedding model (about 8 seconds), so the first question does not have to wait for it."""
+    try:
+        load_model()
+        print("Embedding model ready.")
+    except Exception as e:
+        print(f"Embedding model not loaded yet (it loads on the first question): {e}")
+
+
+@app.before_request
+def start_warm_up():
+    # The server and its pages start at once; the slow model loads in the background meanwhile
+    global _warm_up_started
+    if not _warm_up_started and app.config["WARM_UP_MODEL"]:
+        _warm_up_started = True
+        threading.Thread(target=warm_up_model, daemon=True).start()
+
+
 def indexed_papers(current):
     """Filenames of the papers that are in the loaded index."""
     return sorted({chunk["source"] for chunk in current[1]}) if current else []
@@ -69,11 +92,6 @@ def chat_page():
 @app.get("/how-it-works")
 def how_it_works():
     return render_template("how_it_works.html")
-
-
-@app.get("/history")
-def history_page():
-    return render_template("history.html")
 
 
 # ---------- JSON API ----------
@@ -177,6 +195,22 @@ def ask():
     return jsonify({**result, "chat_id": chat["id"], "paper": paper})
 
 
+@app.get("/api/suggestions")
+def suggestions():
+    """A few questions about one paper, written by the local model from the start of the paper."""
+    paper = request.args.get("paper", "")
+    current = store
+    if current is None:
+        return error("No index yet. Upload PDFs and click Build index first.", 409)
+    if paper not in indexed_papers(current):
+        return error("This paper is not in the index yet. Click Build index first.", 400)
+    try:
+        questions = get_suggestions(paper, current[1], current[2], INDEX_DIR)
+    except (ConnectionError, RuntimeError) as e:  # Ollama not running / model not downloaded
+        return error(str(e), 503)
+    return jsonify({"paper": paper, "questions": questions})
+
+
 @app.get("/api/chats")
 def chats():
     return jsonify(list_chats(app.config["CHATS_DIR"]))
@@ -194,6 +228,8 @@ def chat_detail(chat_id):
 def status():
     current = store
     try:
+        import ollama  # imported here so the app starts faster
+
         ollama.list()  # needs the Ollama server
         ollama_running = True
     except Exception:

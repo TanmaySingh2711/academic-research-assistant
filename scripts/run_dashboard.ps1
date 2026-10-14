@@ -1,11 +1,13 @@
 # Dashboard launcher (called by run_dashboard.bat):
-# centers this window, starts the server, opens the browser, and Esc stops everything.
+# starts the server on port 5000 right away, centers this window, opens the browser
+# as soon as the server answers, and Esc stops everything.
 
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $Host.UI.RawUI.WindowTitle = "Academic Research Assistant"
 
-$url = "http://127.0.0.1:5000"
+$port = 5000
+$url = "http://127.0.0.1:$port"  # the same as http://localhost:5000
 $python = Join-Path $root "venv\Scripts\python.exe"
 
 function Exit-AfterKey($code) {
@@ -15,13 +17,85 @@ function Exit-AfterKey($code) {
     exit $code
 }
 
-function Test-Port($port) {
-    # True if something is listening on 127.0.0.1:$port (connection refused returns at once)
+function Test-Port($number) {
+    # True if something is listening on 127.0.0.1:$number (connection refused returns at once)
     $client = New-Object System.Net.Sockets.TcpClient
-    try { $client.Connect("127.0.0.1", $port); return $true } catch { return $false } finally { $client.Close() }
+    try { $client.Connect("127.0.0.1", $number); return $true } catch { return $false } finally { $client.Close() }
 }
 
-# ---------- 1. Center this window on the main screen ----------
+# Returns the process of THIS project's server if it is the one using the port, else $null.
+# Our server is "python -m flask --app app run" or "python app.py", started from this project's venv.
+function Get-OurServer($number) {
+    $listener = Get-NetTCPConnection -LocalPort $number -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $listener) { return $null }
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($listener.OwningProcess)"
+    # The venv's python.exe starts the real Python as a child, so also look at the parent
+    $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.ParentProcessId)" -ErrorAction SilentlyContinue
+    foreach ($p in @($parent, $process)) {
+        if ($p -and $p.ExecutablePath -and $p.ExecutablePath.StartsWith((Join-Path $root "venv"), "OrdinalIgnoreCase") `
+                -and $p.CommandLine -match "flask --app app run|app\.py") {
+            return $p
+        }
+    }
+    return $null
+}
+
+Write-Host "=============================================="
+Write-Host " Academic Research Assistant"
+Write-Host "=============================================="
+
+if (-not (Test-Path $python)) {
+    Write-Host "The virtual environment was not found. Run setup.bat first."
+    Exit-AfterKey 1
+}
+
+# ---------- 1. Make sure port 5000 is free ----------
+if (Test-Port $port) {
+    $old = Get-OurServer $port
+    if ($old) {
+        # An older run of this dashboard is still open: restart it, so the newest code runs
+        Write-Host "Restarting the dashboard that was already running..."
+        taskkill /PID $old.ProcessId /T /F 2>&1 | Out-Null
+        $wait = [Diagnostics.Stopwatch]::StartNew()
+        while ((Test-Port $port) -and $wait.Elapsed.TotalSeconds -lt 5) { Start-Sleep -Milliseconds 100 }
+    }
+    if (Test-Port $port) {
+        $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+        $name = if ($listener) { (Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue).ProcessName } else { "unknown" }
+        Write-Host "Port $port is used by another program ($name). Close it, then start the dashboard again."
+        Exit-AfterKey 1
+    }
+}
+
+# ---------- 2. Start Ollama if it is not running ----------
+$ollamaProcess = $null
+if (-not (Test-Port 11434)) {
+    $ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
+    if (-not $ollamaExe) { $ollamaExe = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe" }
+    if (Test-Path $ollamaExe) {
+        Write-Host "Starting Ollama..."
+        $ollamaProcess = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -WindowStyle Hidden -PassThru
+    } else {
+        Write-Host "Ollama was not found. You can upload papers, but answers need Ollama (run setup.bat)."
+    }
+}
+
+# ---------- 3. Start the server right away (fast mode) ----------
+# - flask run without debug: the app starts once (debug mode starts it twice)
+# - the embedding model loads in the background after the page opens (see app.py)
+# - Hugging Face offline mode when the model is already downloaded: no online checks
+$env:PYTHONIOENCODING = "utf-8"
+$env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
+$hfHub = if ($env:HF_HOME) { Join-Path $env:HF_HOME "hub" } else { Join-Path $HOME ".cache\huggingface\hub" }
+if (Test-Path (Join-Path $hfHub "models--sentence-transformers--all-MiniLM-L6-v2")) { $env:HF_HUB_OFFLINE = "1" }
+
+Write-Host "Starting the server..."
+Write-Host "Dashboard: $url  (also http://localhost:$port)"
+Write-Host "Press Esc to stop the server and close this window."
+Write-Host ""
+$server = Start-Process -FilePath $python -ArgumentList "-m flask --app app run --host 127.0.0.1 --port $port" -NoNewWindow -PassThru
+
+# ---------- 4. Center this window (while the server starts) ----------
 Add-Type -Namespace Win32 -Name Window -MemberDefinition @"
 [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
 [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
@@ -66,49 +140,7 @@ function Move-WindowToCenter {
 
 Move-WindowToCenter
 
-Write-Host "=============================================="
-Write-Host " Academic Research Assistant"
-Write-Host "=============================================="
-
-if (-not (Test-Path $python)) {
-    Write-Host "The virtual environment was not found. Run setup.bat first."
-    Exit-AfterKey 1
-}
-
-if (Test-Port 5000) {
-    Write-Host "The dashboard is already running (maybe in another window). Opening it..."
-    Start-Process $url
-    Exit-AfterKey 0
-}
-
-# ---------- 2. Start Ollama if it is not running ----------
-$ollamaProcess = $null
-if (-not (Test-Port 11434)) {
-    $ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
-    if (-not $ollamaExe) { $ollamaExe = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe" }
-    if (Test-Path $ollamaExe) {
-        Write-Host "Starting Ollama..."
-        $ollamaProcess = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -WindowStyle Hidden -PassThru
-    } else {
-        Write-Host "Ollama was not found. You can upload papers, but answers need Ollama (run setup.bat)."
-    }
-}
-
-# ---------- 3. Start the server (fast mode) ----------
-# - flask run without debug: the app starts once (debug mode starts it twice)
-# - Hugging Face offline mode when the embedding model is already downloaded: no online checks at startup
-$env:PYTHONIOENCODING = "utf-8"
-$env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
-$hfHub = if ($env:HF_HOME) { Join-Path $env:HF_HOME "hub" } else { Join-Path $HOME ".cache\huggingface\hub" }
-if (Test-Path (Join-Path $hfHub "models--sentence-transformers--all-MiniLM-L6-v2")) { $env:HF_HUB_OFFLINE = "1" }
-
-Write-Host "Starting the server, this takes about 10 seconds..."
-Write-Host "Dashboard: $url"
-Write-Host "Press Esc to stop the server and close this window."
-Write-Host ""
-$server = Start-Process -FilePath $python -ArgumentList "-m flask --app app run --host 127.0.0.1 --port 5000" -NoNewWindow -PassThru
-
-# ---------- 4. Wait: open the browser when ready, warm up the LLM, stop on Esc ----------
+# ---------- 5. Wait: open the browser when ready, warm up the LLM, stop on Esc ----------
 [Console]::TreatControlCAsInput = $true  # Ctrl+C is handled like Esc, so nothing is left running
 Add-Type -AssemblyName System.Net.Http
 $http = New-Object System.Net.Http.HttpClient
@@ -119,7 +151,7 @@ $llmWarmed = $false
 $stopRequested = $false
 
 while (-not $server.HasExited) {
-    if (-not $browserOpened -and (Test-Port 5000)) {
+    if (-not $browserOpened -and (Test-Port $port)) {
         Start-Process $url
         $browserOpened = $true
     }
@@ -142,7 +174,7 @@ while (-not $server.HasExited) {
     Start-Sleep -Milliseconds 100
 }
 
-# ---------- 5. Stop everything ----------
+# ---------- 6. Stop everything ----------
 if ($stopRequested) {
     Write-Host ""
     Write-Host "Stopping the server..."

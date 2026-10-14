@@ -80,6 +80,11 @@ body = show("POST /ask (follow-up in the same chat)", client.post("/ask", json={
 if body["chat_id"] != chat_id or body["paper"] != paper:
     failures.append("follow-up: must stay in the same chat and paper")
 
+body = show("GET /api/suggestions (one paper)", client.get(f"/api/suggestions?paper={paper}"), 200)
+if not isinstance(body.get("questions"), list):
+    failures.append("/api/suggestions: expected a list of questions")
+show("GET /api/suggestions (paper not indexed)", client.get("/api/suggestions?paper=missing.pdf"), 400)
+
 show("POST /ask (paper not indexed)", client.post("/ask", json={"question": "Hi?", "paper": "missing.pdf"}), 400)
 show("POST /ask (unknown chat)", client.post("/ask", json={"question": "Hi?", "chat_id": "000000000000"}), 404)
 

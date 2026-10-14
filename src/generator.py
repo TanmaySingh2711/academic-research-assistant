@@ -2,8 +2,6 @@
 
 import time
 
-import ollama
-
 # Phrases that mean "the answer is not in the papers" (lenient check, the model may reword it)
 NOT_FOUND_PHRASES = [
     "could not find",
@@ -18,6 +16,8 @@ NOT_FOUND_PHRASES = [
 
 def generate_answer(messages, model="llama3.2:3b", temperature=0.1):
     """Send messages to Ollama and return the answer with token counts and time taken."""
+    import ollama  # imported here so the app starts faster (it is only needed for answers)
+
     start = time.perf_counter()
     try:
         # Low temperature = the model picks the most likely words, with little randomness.

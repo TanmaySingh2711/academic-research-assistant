@@ -8,12 +8,13 @@ Everything runs on your own computer: no API keys, no paid services and no cloud
 
 ## Features
 
-- A 4-page dashboard in a black and cyan theme: Overview, Assistant, How it works and History
+- A 3-page dashboard in a black and cyan theme: Overview, Assistant and How it works
 - Chat interface in the style of ChatGPT, Claude and Gemini: message bubbles, a typing effect, Enter to send
 - Upload PDFs with the clip button or by dropping them on the page, then build the search index with one click
 - Ask about one paper or about all papers; each paper gets its own chats
+- Suggested questions for each paper: the local model reads the start of the paper and writes a few questions about it
 - Sources for every answer: paper, page and similarity score; click a citation number to open the exact chunk text
-- Chat history saved on your computer and grouped by paper, with search
+- Chat history saved on your computer and listed by paper in the assistant's sidebar
 - Choose how many chunks the model reads (K = 1, 3 or 5)
 - Says "I could not find this in the uploaded papers." when the papers do not contain the answer
 - Shows prompt tokens, answer tokens and response time for each answer
@@ -81,18 +82,18 @@ academic-research-assistant/
 |   |-- prompt_builder.py   System prompt, numbered context and sources
 |   |-- generator.py        Call Ollama, token counts, "not found" check
 |   |-- rag_pipeline.py     answer_question(): retrieve -> prompt -> generate
-|   `-- chat_store.py       Save and list chats (one JSON file per chat in chats/)
+|   |-- chat_store.py       Save and list chats (one JSON file per chat in chats/)
+|   `-- suggestions.py      Suggested questions for a paper (saved in index/suggestions.json)
 |-- chats/                  Saved chat history (generated, not in the repo)
 |-- templates/
 |   |-- base.html           Shared layout: top bar and navigation
-|   |-- overview.html       Page 1: what the project is and how to use it
-|   |-- chat.html           Page 2: the assistant (upload, build index, chat)
+|   |-- overview.html       Page 1: what the project is
+|   |-- chat.html           Page 2: the assistant (upload, build index, chat, chat history)
 |   |-- how_it_works.html   Page 3: three flowcharts
-|   |-- history.html        Page 4: chats grouped by paper
 |   `-- _icons.html         Line icons and the logo as inline SVG
 |-- static/
 |   |-- css/                One shared stylesheet (base.css) plus one per page
-|   |-- js/                 common.js (shared helpers) plus one script per page
+|   |-- js/                 common.js (shared helpers), chat.js and how.js
 |   `-- img/logo.svg        App icon
 `-- tests/
     |-- verify_setup.py     Check that libraries are installed and Ollama is reachable
@@ -150,7 +151,7 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 
 ## How to run
 
-**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens in your browser when the server is ready (about 13 seconds), and **Esc** stops the server and closes the window. The launcher also starts Ollama if it is not running and loads `llama3.2:3b` into memory in the background, so the first answer is fast too.
+**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://127.0.0.1:5000 (the same as http://localhost:5000) when the server is ready (about 3 seconds), and **Esc** stops the server and closes the window. If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the embedding model and `llama3.2:3b` load in the background, so the first answer is fast too.
 
 **Any OS, from a terminal:**
 
@@ -165,15 +166,14 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 
 | Page | URL | What you do there |
 |---|---|---|
-| Overview | `/` | Read what the project is, see live numbers (papers, chunks) and the steps |
-| Assistant | `/chat` | Upload PDFs (clip button or drag and drop), click **Build index**, pick a paper or All papers, and ask |
+| Overview | `/` | Read what the project is, which models it uses and how a PDF becomes an answer |
+| Assistant | `/chat` | Upload PDFs (clip button or drag and drop), click **Build index**, pick a paper or All papers, ask, and find old chats in the sidebar |
 | How it works | `/how-it-works` | Three flowcharts: how it was built, how it works inside, and the user flow |
-| History | `/history` | All chats grouped by paper; search them, open one to continue, or start a new chat for a paper |
 
 1. On the Assistant page, upload one or more PDFs.
 2. Click **Build index**. For 3 papers this took about 13 to 19 seconds on a CPU.
-3. Pick a paper at the top (or keep All papers), type a question and press Enter.
-4. Open the sources under the answer to check the exact text. Each chat is saved and shows up on the History page.
+3. Pick a paper at the top (or keep All papers). For one paper, the assistant suggests a few questions about it (a few seconds the first time). Click one, or type your own question and press Enter.
+4. Open the sources under the answer to check the exact text. Each chat is saved in the sidebar, grouped by paper.
 
 To rebuild the index from the terminal instead (for example after copying PDFs into `data/` by hand):
 ```
@@ -279,12 +279,13 @@ python -m tests.test_prompt_builder   # exact messages sent to the LLM
 python -m tests.test_generator        # answers from llama3.2:3b (needs Ollama)
 python -m tests.test_app              # all Flask routes (needs Ollama)
 python -m tests.test_chat_store       # saving and listing chats (no LLM needed)
+python -m tests.test_suggestions      # cleaning the suggested questions (no LLM needed)
 python -m tests.test_dashboard        # the 4 pages, static files, no long dashes or emoji
 ```
 
 Notes:
 
-- Most tests need papers in `data/` and a built index (`python build_index.py`).
+- Most tests need papers in `data/` and a built index (`python build_index.py`). Without your own papers, `python -m tests.make_sample_pdfs` puts 3 small sample PDFs in `data/` (this is what CI does).
 - `test_app` rebuilds the index and re-uploads one PDF from `data/` (it overwrites it with the same file).
 - Stop the running app before running the tests if you want port 5000 free; the tests themselves do not use the port.
 - A test script exits with an error code when one of its checks fails, so CI can detect it. LLM answers are printed but not checked word by word, because their wording can change between runs.

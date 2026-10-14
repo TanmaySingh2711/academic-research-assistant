@@ -1,21 +1,28 @@
 """Embeddings: turn chunk text into vectors with the local all-MiniLM-L6-v2 model."""
 
+import threading
+
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 # The embedding model used for both chunks and questions
 MODEL_NAME = "all-MiniLM-L6-v2"
 
 # Cached model, so the slow loading happens only once
 _model = None
+_model_lock = threading.Lock()  # two requests at the same time still load the model only once
 
 
 def load_model(model_name=MODEL_NAME):
     """Load the SentenceTransformer model once and reuse it on later calls."""
     global _model
-    if _model is None:
-        # First run downloads the model from Hugging Face (free, no login), then it is cached locally
-        _model = SentenceTransformer(model_name)
+    with _model_lock:
+        if _model is None:
+            # Imported here, not at the top: sentence-transformers (with PyTorch) takes about 8 seconds
+            # to import, and the app can already start and show its pages while that happens.
+            from sentence_transformers import SentenceTransformer
+
+            # First run downloads the model from Hugging Face (free, no login), then it is cached locally
+            _model = SentenceTransformer(model_name)
     return _model
 
 

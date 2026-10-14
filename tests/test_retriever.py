@@ -2,11 +2,13 @@
 
 import time
 
+from src.embedder import load_model
 from src.retriever import check_model_matches, retrieve
 from src.vector_store import load_store
 
 index, chunks, info = load_store("index")
-check_model_matches(info)  # also loads the model, so the timings below do not include loading
+check_model_matches(info)
+load_model()  # load the model first, so the timings below do not include loading
 print(f"Store loaded: {index.ntotal} vectors, model '{info['model_name']}' matches.\n")
 
 QUESTIONS = [

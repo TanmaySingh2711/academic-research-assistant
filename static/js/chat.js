@@ -145,14 +145,73 @@ function renderEmptyState() {
     if (!empty) return;
 
     const ready = Boolean(state.status && state.status.index_ready);
-    $("suggestions").hidden = !ready;
     $("setup-steps").hidden = ready;
     const paper = currentPaper();
     $("empty-scope").textContent = !ready
         ? "Upload a paper and build the index to start."
         : paper
-            ? `Asking about ${paperName(paper)}. Every answer shows the page it came from.`
-            : "Asking about all your papers. Every answer shows the page it came from.";
+            ? `Asking about ${paperName(paper)}. Type your own question, or pick one below.`
+            : "Asking about all your papers. Pick one paper at the top to see suggested questions about it.";
+    renderSuggestions(ready ? paper : null);
+}
+
+// ---------- Suggested questions for the selected paper ----------
+
+const suggestionCache = new Map(); // paper -> questions, so each paper is asked for only once
+let suggestionsShownFor = null; // paper whose questions are on screen now
+let suggestionsLoadingFor = null; // paper whose questions are being written right now
+
+// The local model reads the start of the paper and writes a few questions about it (see src/suggestions.py)
+async function renderSuggestions(paper) {
+    const box = $("suggest");
+    const list = $("suggestions");
+    if (!paper) {
+        box.hidden = true;
+        suggestionsShownFor = null;
+        return;
+    }
+    if (paper === suggestionsShownFor || paper === suggestionsLoadingFor) return; // already there
+
+    let questions = suggestionCache.get(paper);
+    if (!questions) {
+        // Grey placeholders while the model reads the paper (a few seconds the first time)
+        box.hidden = false;
+        suggestionsShownFor = null;
+        suggestionsLoadingFor = paper;
+        $("suggest-label").textContent = "Reading the paper to suggest questions...";
+        list.replaceChildren(...Array.from({ length: 4 }, () => {
+            const placeholder = el("div", "suggestion is-loading");
+            placeholder.append(el("span", "skeleton"));
+            return placeholder;
+        }));
+        try {
+            questions = (await api(`/api/suggestions?paper=${encodeURIComponent(paper)}`)).questions;
+            if (questions.length) suggestionCache.set(paper, questions);
+        } catch {
+            questions = []; // for example Ollama is not running: the user can still type a question
+        }
+        suggestionsLoadingFor = null;
+        if (currentPaper() !== paper || $("empty-state").hidden) {
+            renderEmptyState(); // the user switched paper or already asked something meanwhile
+            return;
+        }
+    }
+
+    if (!questions.length) {
+        box.hidden = true;
+        return;
+    }
+    $("suggest-label").textContent = "Suggested questions for this paper";
+    list.replaceChildren(...questions.map((question, i) => {
+        const button = el("button", "suggestion");
+        button.type = "button";
+        button.style.animationDelay = `${i * 70}ms`;
+        button.append(icon("chat", 15), el("span", "", question));
+        button.addEventListener("click", () => ask(question));
+        return button;
+    }));
+    box.hidden = false;
+    suggestionsShownFor = paper;
 }
 
 function updateComposer() {
@@ -164,30 +223,51 @@ function updateComposer() {
         : paper ? "Ask about this paper..." : "Ask about your papers...";
 }
 
-// ---------- Recent chats ----------
+// ---------- Chat history in the sidebar, grouped by paper ----------
 
-async function loadRecentChats() {
+async function loadChats() {
     let chats = [];
     try {
-        chats = await api("/api/chats");
+        chats = await api("/api/chats"); // newest first
     } catch {
         // the list stays empty when the server is offline
     }
-    const list = $("recent-list");
+    $("chat-count").textContent = chats.length;
+    const container = $("chat-groups");
     if (!chats.length) {
-        list.replaceChildren(el("li", "side-empty", "No chats yet."));
-    } else {
-        list.replaceChildren(...chats.slice(0, 20).map((chat, i) => {
+        container.replaceChildren(el("p", "side-empty", "No chats yet. Ask a question to start one."));
+        state.listsLoaded = true;
+        return;
+    }
+
+    // One group per paper; the group with the newest chat comes first
+    const groups = new Map();
+    for (const chat of chats) {
+        const key = chat.paper || "";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(chat);
+    }
+
+    let i = 0;
+    const blocks = [];
+    for (const [paper, list] of groups) {
+        const block = el("div", "chat-group");
+        const head = el("div", "chat-group-head");
+        head.title = paper || "Chats about all papers";
+        head.append(icon(paper ? "file" : "layers", 13), el("span", "", paperName(paper || null)));
+
+        const items = el("ul", "recent-list");
+        for (const chat of list) {
             const button = el("button", "side-item");
             button.type = "button";
             button.dataset.chat = chat.id;
             if (!state.listsLoaded) {
                 button.classList.add("animate-in");
-                button.style.animationDelay = `${i * 30}ms`;
+                button.style.animationDelay = `${i++ * 30}ms`;
             }
             const text = el("span", "side-item-text");
             text.append(el("span", "side-item-title", chat.title),
-                el("span", "side-item-sub", `${paperName(chat.paper)}, ${App.relativeTime(chat.updated_at)}`));
+                el("span", "side-item-sub", App.relativeTime(chat.updated_at)));
             button.append(icon("chat", 15), text);
             button.addEventListener("click", () => {
                 openChat(chat.id);
@@ -195,15 +275,18 @@ async function loadRecentChats() {
             });
             const item = el("li");
             item.append(button);
-            return item;
-        }));
+            items.append(item);
+        }
+        block.append(head, items);
+        blocks.push(block);
     }
+    container.replaceChildren(...blocks);
     state.listsLoaded = true;
     markActiveChat();
 }
 
 function markActiveChat() {
-    document.querySelectorAll("#recent-list .side-item").forEach((button) => {
+    document.querySelectorAll("#chat-groups .side-item").forEach((button) => {
         button.classList.toggle("is-active", button.dataset.chat === state.chatId);
     });
 }
@@ -288,7 +371,7 @@ async function ask(question) {
         renderPaperSelect();
         renderPapers();
         addAssistantMessage(data, { animate: true });
-        loadRecentChats();
+        loadChats();
     } catch (err) {
         thinking.remove();
         addErrorMessage(err.message, question, userMessage);
@@ -668,10 +751,6 @@ $("paper-select").addEventListener("change", (event) => {
     updateComposer();
 });
 
-document.querySelectorAll(".suggestion").forEach((button) => {
-    button.addEventListener("click", () => ask(button.dataset.question));
-});
-
 $("new-chat").addEventListener("click", () => {
     startNewChat(null);
     closeSidebar();
@@ -724,7 +803,7 @@ window.addEventListener("focus", () => {
 (async function init() {
     const params = new URLSearchParams(location.search);
     await refreshStatus();
-    loadRecentChats();
+    loadChats();
     if (params.get("chat")) await openChat(params.get("chat"), { push: false });
     else startNewChat(params.get("paper"), { push: false });
 })();

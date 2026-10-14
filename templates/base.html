@@ -22,7 +22,6 @@
             ('overview', 'Overview', 'home'),
             ('chat_page', 'Assistant', 'chat'),
             ('how_it_works', 'How it works', 'flow'),
-            ('history_page', 'History', 'history'),
         ] %}
         {% for endpoint, label, icon_name in pages %}
         <a href="{{ url_for(endpoint) }}" class="nav-link {% if request.endpoint == endpoint %}is-active{% endif %}"

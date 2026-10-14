@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app import app
 
+app.config["WARM_UP_MODEL"] = False  # these checks only need the pages, not the embedding model
 client = app.test_client()
 failures: list[str] = []
 
@@ -18,11 +19,13 @@ def check(ok, label):
 
 
 PAGES = {
-    "/": ["Ask your research papers", "From PDF to answer", "How to use it"],
-    "/chat": ["New chat", "Upload PDF", "Build index", "What would you like to know?"],
+    "/": ["Ask your research papers", "What this project is", "From PDF to answer"],
+    "/chat": ["New chat", "Upload PDF", "Build index", "What would you like to know?", "Chats"],
     "/how-it-works": ["How it was built", "How it works inside", "User flow"],
-    "/history": ["Your chats", "Search chats"],
 }
+
+removed = client.get("/history")
+check(removed.status_code == 404, "/history was removed (chats are in the assistant's sidebar)")
 
 static_files = set()
 for url, texts in PAGES.items():

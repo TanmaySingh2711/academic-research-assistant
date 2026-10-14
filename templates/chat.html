@@ -30,10 +30,11 @@
 
         <section class="side-section side-chats">
             <div class="side-heading">
-                <span>Recent chats</span>
-                <a class="side-link" href="{{ url_for('history_page') }}">View all</a>
+                <span>Chats</span>
+                <span class="badge badge-muted" id="chat-count">0</span>
             </div>
-            <ul class="recent-list" id="recent-list"></ul>
+            <!-- Every saved chat, grouped by paper -->
+            <div class="chat-groups" id="chat-groups"></div>
         </section>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -64,19 +65,10 @@
                 <h1>What would you like to know?</h1>
                 <p id="empty-scope">Ask anything about your papers. Every answer shows the page it came from.</p>
 
-                <div class="suggestions" id="suggestions">
-                    <button type="button" class="suggestion" data-question="What is the main idea of this paper?">
-                        <strong>Main idea</strong><span>What is the main idea of this paper?</span>
-                    </button>
-                    <button type="button" class="suggestion" data-question="What method do the authors propose?">
-                        <strong>Method</strong><span>What method do the authors propose?</span>
-                    </button>
-                    <button type="button" class="suggestion" data-question="What are the main results?">
-                        <strong>Results</strong><span>What are the main results?</span>
-                    </button>
-                    <button type="button" class="suggestion" data-question="What limitations do the authors mention?">
-                        <strong>Limitations</strong><span>What limitations do the authors mention?</span>
-                    </button>
+                <!-- Questions about the selected paper, written by the local model (filled by chat.js) -->
+                <div class="suggest" id="suggest" hidden>
+                    <p class="suggest-label" id="suggest-label">Suggested questions for this paper</p>
+                    <div class="suggestions" id="suggestions"></div>
                 </div>
 
                 <!-- Shown instead of the suggestions when there is no index yet -->

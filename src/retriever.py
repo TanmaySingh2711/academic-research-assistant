@@ -1,6 +1,6 @@
 """Retrieval: turn a question into a vector and find the top-k most similar chunks in FAISS."""
 
-from src.embedder import MODEL_NAME, embed_texts, load_model
+from src.embedder import MODEL_NAME, embed_texts
 from src.vector_store import normalize_vectors
 
 
@@ -48,10 +48,12 @@ def retrieve(question, index, chunks, k=3, source=None):
 
 
 def check_model_matches(info):
-    """Raise an error if the index was built with a different model than the one embedder.py loads."""
-    # The loaded model reports e.g. "sentence-transformers/all-MiniLM-L6-v2"; compare the part after "/".
-    # That name comes from the Hugging Face model card and is None when offline, so fall back to MODEL_NAME.
-    current = (load_model().model_card_data.base_model or MODEL_NAME).split("/")[-1]
+    """Raise an error if the index was built with a different model than the one embedder.py loads.
+
+    Compares names only, so it is instant and does not need to load the model.
+    """
+    # Names can look like "sentence-transformers/all-MiniLM-L6-v2"; compare the part after "/"
+    current = MODEL_NAME.split("/")[-1]
     built_with = info["model_name"].split("/")[-1]
     if current != built_with:
         raise ValueError(

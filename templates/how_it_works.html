@@ -176,7 +176,7 @@
             {{ arrow("Yes") }}
             {{ node("Pick a paper", "Choose one paper at the top, or keep All papers. Each paper gets its own chats.", icon_name="file") }}
             {{ arrow() }}
-            {{ node("Ask a question", "Type it and press Enter. Choose how many chunks the model reads (1, 3 or 5).", icon_name="chat") }}
+            {{ node("Ask a question", "Type your own question, or click one of the questions the app suggests for that paper. Press Enter.", icon_name="chat") }}
             {{ arrow() }}
             {{ decision("Is the answer in the papers?", "You see \"not found\"", "Try other words, or start a new chat about a different paper.") }}
             {{ arrow("Yes") }}
@@ -184,7 +184,7 @@
             {{ arrow() }}
             {{ node("Keep going", "Ask more questions in the same chat, or click New chat.", icon_name="plus") }}
             {{ arrow() }}
-            <div class="flow-end">{{ icon('history', 16) }} Every chat is saved on the History page, grouped by paper</div>
+            <div class="flow-end">{{ icon('history', 16) }} Every chat is saved in the sidebar, grouped by paper</div>
         </div>
     </section>
 </main>

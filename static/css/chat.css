@@ -164,6 +164,33 @@
     min-height: 0;
 }
 
+/* Chats grouped by paper */
+.chat-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chat-group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px 2px;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.chat-group-head .icon {
+    color: var(--cyan);
+}
+
+.chat-group-head span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .sidebar-backdrop {
     display: none;
 }
@@ -289,6 +316,25 @@
     color: var(--text-muted);
 }
 
+/* Suggested questions for the selected paper */
+.suggest {
+    width: 100%;
+}
+
+.suggest[hidden] {
+    display: none;
+}
+
+.suggest-label {
+    margin: 0 0 10px;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
 .suggestions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -296,29 +342,28 @@
     width: 100%;
 }
 
-.suggestions[hidden] {
-    display: none;
-}
-
 .suggestion {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 56px;
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
     color: var(--text);
     font: inherit;
+    font-size: 0.9rem;
     text-align: left;
     cursor: pointer;
     transition: transform 0.25s var(--ease), border-color 0.25s, background 0.25s;
     animation: fadeUp 0.5s var(--ease) both;
 }
 
-.suggestion:nth-child(2) { animation-delay: 0.06s; }
-.suggestion:nth-child(3) { animation-delay: 0.12s; }
-.suggestion:nth-child(4) { animation-delay: 0.18s; }
+.suggestion .icon {
+    margin-top: 3px;
+    color: var(--cyan);
+}
 
 .suggestion:hover {
     transform: translateY(-2px);
@@ -326,13 +371,21 @@
     background: var(--surface-2);
 }
 
-.suggestion strong {
-    font-size: 0.9rem;
+/* Grey placeholder while the model writes the questions */
+.suggestion.is-loading {
+    align-items: center;
+    cursor: default;
 }
 
-.suggestion span {
-    color: var(--text-muted);
-    font-size: 0.84rem;
+.suggestion.is-loading:hover {
+    transform: none;
+    border-color: var(--border);
+    background: var(--surface);
+}
+
+.suggestion.is-loading .skeleton {
+    width: 85%;
+    height: 12px;
 }
 
 .setup-steps {
