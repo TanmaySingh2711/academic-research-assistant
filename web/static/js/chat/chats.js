@@ -159,13 +159,7 @@ export async function ask(question) {
     } catch (err) {
         if (controller.signal.aborted) {
             answer.stop();
-            // The server saves what was written before Stop; continue in that chat if it was saved
-            setTimeout(async () => {
-                await loadChats();
-                if (started && state.chatId === null && state.chats.some((chat) => chat.id === started.chat_id)) {
-                    adoptChat(started.chat_id, started.paper);
-                }
-            }, 500);
+            if (started) waitForSavedChat(started);
         } else {
             answer.remove();
             addErrorMessage(err.message, question, userMessage);
@@ -176,6 +170,23 @@ export async function ask(question) {
         state.stream = null;
         updateComposer();
         $("question").focus();
+    }
+}
+
+// After Stop, the server saves what was written as soon as it notices the closed connection.
+// On a slow computer that can take a moment, so look for the saved chat a few times
+// (nothing is saved if Stop came before the first word). Continue in that chat when it is
+// there, unless the user has moved on to something else meanwhile.
+async function waitForSavedChat(started, tries = 8) {
+    for (let i = 0; i < tries; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await loadChats();
+        if (state.chats.some((chat) => chat.id === started.chat_id)) {
+            if (state.chatId === null && !state.busy && currentPaper() === started.paper) {
+                adoptChat(started.chat_id, started.paper);
+            }
+            return;
+        }
     }
 }
 
