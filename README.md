@@ -424,7 +424,7 @@ mypy app.py src scripts evaluation tests
 - Most tests use a fake language model, so they are fast and repeatable. Tests marked `ollama` use the real model and are skipped when Ollama is not running.
 - Tests marked `browser` drive the real page in Edge or Chrome and are skipped when neither is installed.
 
-GitHub Actions runs lint, type checks, the one-click setup and all tests on Windows, macOS and Linux. It also runs the evaluation and fails if search or answer quality drops (Hit@3 below 95% or fewer than 90% correct answers).
+GitHub Actions runs lint, type checks, the one-click setup and all tests on Windows, macOS and Linux. It also runs the evaluation and fails if search or answer quality drops (Hit@3 below 95% or fewer than 90% correct answers). To save time, the 68 questions are split over 4 machines that run at the same time, and a last step joins their results into one report.
 
 ## Limitations
 

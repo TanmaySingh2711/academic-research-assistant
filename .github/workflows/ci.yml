@@ -131,7 +131,13 @@ jobs:
           if [ -n "$found" ]; then echo "__pycache__ found:"; echo "$found"; exit 1; fi
 
   evaluation:
-    name: Answer quality (evaluation set)
+    # The 68 questions are split over 4 machines that run at the same time (every 4th question
+    # each), which takes about a quarter of the time. The job below joins the 4 results.
+    name: Answer quality, part ${{ matrix.part }} of 4
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -144,9 +150,32 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: |
-          sudo apt-get install -y libgl1
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
       - uses: ./.github/actions/setup-ollama
-      # 68 questions about the 4 evaluation papers: the right chunk must be found and the answer must be right
-      - run: python -m evaluation.evaluate --answers --min-hit3 0.95 --min-correct 0.9
+      - run: python -m evaluation.evaluate --answers --shard ${{ matrix.part }}/4 --save results/part-${{ matrix.part }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-part-${{ matrix.part }}
+          path: results/part-${{ matrix.part }}.json
+
+  evaluation-result:
+    # One report for all 68 questions about the 4 evaluation papers: the right chunk must be
+    # found (Hit@3 at least 95%) and at least 90% of the answers must be right
+    name: Answer quality (evaluation set)
+    needs: evaluation
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: evaluation-part-*
+          path: results
+          merge-multiple: true
+      # Joining the results needs only the standard library, so nothing is installed here
+      - run: python -m evaluation.evaluate --combine results/part-*.json --min-hit3 0.95 --min-correct 0.9
