@@ -16,10 +16,6 @@ Usage:
   python -m evaluation.evaluate --answers       retrieval and answers
   python -m evaluation.evaluate --min-hit3 0.95                  fail if Hit@3 is lower (used by CI)
   python -m evaluation.evaluate --answers --min-correct 0.9      fail if fewer answers are correct
-
-Splitting the work (CI runs the answers on 4 machines at the same time):
-  python -m evaluation.evaluate --answers --shard 1/4 --save part1.json    every 4th question, saved
-  python -m evaluation.evaluate --combine part*.json --min-correct 0.9     one report for all parts
 """
 
 import argparse
@@ -35,8 +31,8 @@ from typing import Any
 from evaluation.corpus import build_corpus
 from src.schema import Chunk, SearchResult, Turn
 
-# The search and answer code (PyTorch, FAISS, ...) is imported only where it is needed, so
-# --combine runs with the standard library alone.
+# The search and answer code (PyTorch, FAISS, ...) is imported only where it is needed,
+# so --help and the helpers below load fast.
 
 ROOT = Path(__file__).resolve().parent.parent
 WORK_DIR = ROOT / ".cache" / "eval"
@@ -215,25 +211,6 @@ def check_gates(retrieval: dict, answers: dict | None, min_hit3: float | None, m
         sys.exit(f"{answers['correct']:.1%} of the answers are correct, below the minimum of {min_correct:.1%}")
 
 
-def shard(questions: list[dict], spec: str) -> list[dict]:
-    """Every n-th question for part i of n ("2/4" = questions 2, 6, 10, ...)."""
-    part, parts = (int(x) for x in spec.split("/"))
-    if not 1 <= part <= parts:
-        raise SystemExit(f"--shard must look like 1/4 (got {spec})")
-    return questions[part - 1::parts]
-
-
-def combine(files: list[Path], min_hit3: float | None, min_correct: float | None) -> None:
-    """Join the records saved by --save and report them as one run."""
-    parts = [json.loads(path.read_text(encoding="utf-8")) for path in files]
-    k, method = parts[0]["k"], parts[0]["method"]
-    retrieval = report_retrieval([r for part in parts for r in part["retrieval"]], k, method)
-    answers = None
-    if all(part["answers"] is not None for part in parts):
-        answers = report_answers([r for part in parts for r in part["answers"]], k)
-    check_gates(retrieval, answers, min_hit3, min_correct)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--answers", action="store_true", help="also ask the LLM (needs Ollama)")
@@ -244,16 +221,9 @@ def main() -> None:
                                          "'compare' runs every method (retrieval only)")
     parser.add_argument("--chunk-size", type=int, help="words per chunk (default: the app's setting)")
     parser.add_argument("--overlap", type=int, help="overlap in words (default: the app's setting)")
-    parser.add_argument("--shard", help="run only part of the questions, like 1/4")
-    parser.add_argument("--save", type=Path, help="save the results of every question to this JSON file")
-    parser.add_argument("--combine", type=Path, nargs="+", help="report the files saved by --save as one run")
     parser.add_argument("--min-hit3", type=float, help="fail if Hit@3 is below this value (0 to 1)")
     parser.add_argument("--min-correct", type=float, help="fail if the share of correct answers is lower (0 to 1)")
     args = parser.parse_args()
-
-    if args.combine:
-        combine(args.combine, args.min_hit3, args.min_correct)
-        return
 
     from src.ingest import CHUNK_SIZE, OVERLAP
     from src.retriever import DEFAULT_METHOD, METHODS
@@ -264,8 +234,6 @@ def main() -> None:
         parser.error(f"--method must be one of {', '.join(METHODS)} or compare")
 
     questions = json.loads(args.questions.read_text(encoding="utf-8"))
-    if args.shard:
-        questions = shard(questions, args.shard)
     chunk_size = args.chunk_size or CHUNK_SIZE
     overlap = OVERLAP if args.overlap is None else args.overlap
     _, index_dir = build_eval_index(args.data, chunk_size, overlap)
@@ -281,10 +249,6 @@ def main() -> None:
     asked = answer_records(questions, index, chunks, args.k) if args.answers else None
     answers = report_answers(asked, args.k) if asked else None
 
-    if args.save:
-        args.save.parent.mkdir(parents=True, exist_ok=True)
-        args.save.write_text(json.dumps({"k": args.k, "method": method, "retrieval": found, "answers": asked},
-                                        indent=2), encoding="utf-8")
     check_gates(retrieval, answers, args.min_hit3, args.min_correct)
 
 
