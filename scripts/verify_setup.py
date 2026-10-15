@@ -43,7 +43,7 @@ def main() -> int:
     if problems:
         return 1
 
-    print("\nChecking the search models (downloaded once, about 110 MB)...")
+    print("\nChecking the search models (downloaded once, about 180 MB)...")
     from src.embedder import MODEL_NAME, load_model
     from src.reranker import MODEL_NAME as RERANKER_NAME
     from src.reranker import load_reranker
