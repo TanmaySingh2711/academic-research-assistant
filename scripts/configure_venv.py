@@ -49,12 +49,47 @@ try:
         return normal
 
     _external.cache_from_source = _cache_from_source
+
+    class _PytestCacheFinder:
+        """pytest writes the cache files of test files itself (for its assertion rewriting).
+        When pytest loads that code, its get_cache_dir() is pointed to .cache/pycache/ as well."""
+
+        def find_spec(self, name, path=None, target=None):
+            if name != "_pytest.assertion.rewrite":
+                return None
+            sys.meta_path.remove(self)
+            import importlib.util
+            import pathlib
+
+            spec = importlib.util.find_spec(name)
+            if spec is None or spec.loader is None:
+                return spec
+            run = spec.loader.exec_module
+
+            def exec_module(module):
+                run(module)
+                original = module.get_cache_dir
+
+                def get_cache_dir(file_path):
+                    source_dir = os.path.normcase(os.path.dirname(os.path.abspath(file_path)))
+                    in_project = source_dir == _PROJECT or source_dir.startswith(_PROJECT + os.sep)
+                    if in_project and not source_dir.startswith(_VENV):
+                        return pathlib.Path(_CACHE, os.path.relpath(os.path.dirname(os.path.abspath(file_path)),
+                                                                    _PROJECT))
+                    return original(file_path)
+
+                module.get_cache_dir = get_cache_dir
+
+            spec.loader.exec_module = exec_module
+            return spec
+
+    sys.meta_path.insert(0, _PytestCacheFinder())
 except Exception:
     pass  # if anything goes wrong, Python simply uses normal __pycache__ folders
 '''
 
 
-def main():
+def main() -> None:
     if sys.prefix == sys.base_prefix:
         sys.exit("Run this with the venv's Python, not the system Python.")
 

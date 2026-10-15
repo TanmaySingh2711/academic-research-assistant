@@ -1,47 +1,75 @@
-"""Quick test for src/vector_store.py: load the saved store, show normalization, and check the index order."""
+"""src/vector_store.py: the FAISS index, removing a paper, saving and loading."""
 
-import json
-import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
-from src.vector_store import load_store, normalize_vectors
+from src.schema import Chunk
+from src.vector_store import (
+    all_vectors,
+    build_index,
+    load_store,
+    normalize_vectors,
+    remove_paper,
+    renumber,
+    save_store,
+)
 
-INDEX_DIR = "index"
 
-index, chunks, info = load_store(INDEX_DIR)
+def chunks_for(sources: list[str]) -> list[Chunk]:
+    return [{"chunk_id": i, "source": s, "page": 1, "text": f"chunk {i}", "word_count": 2}
+            for i, s in enumerate(sources)]
 
-print("=== info.json ===")
-print(json.dumps(info, indent=2))
 
-print("\n=== Index ===")
-print(f"index.ntotal (vectors):  {index.ntotal}")
-print(f"index.d (dimension):     {index.d}")
-print(f"number of chunks:        {len(chunks)}")
+def random_vectors(n: int) -> np.ndarray:
+    return np.random.default_rng(0).normal(size=(n, 384)).astype(np.float32)
 
-print("\n=== Size on disk ===")
-for name in ("faiss.index", "chunks.json"):
-    print(f"  {name:<12} {(Path(INDEX_DIR) / name).stat().st_size / 1024:.1f} KB")
 
-print("\n=== Normalization demo (random test vectors, not normalized) ===")
-rng = np.random.default_rng(42)
-test_vectors = rng.normal(size=(3, 384)).astype(np.float32)
-normalized = normalize_vectors(test_vectors)
-for i in range(3):
-    print(f"  vector {i}: norm before = {np.linalg.norm(test_vectors[i]):.4f} | "
-          f"after = {np.linalg.norm(normalized[i]):.4f}")
+def test_normalize_vectors_gives_length_one() -> None:
+    vectors = normalize_vectors([[3.0, 4.0], [0.0, 0.0]])
+    assert np.allclose(np.linalg.norm(vectors[0]), 1.0)
+    assert np.allclose(vectors[1], 0.0)  # an all-zero row stays zero (no division by zero)
 
-print("\n=== Sanity check: each stored vector should find itself ===")
-failed = 0
-for i in (0, len(chunks) // 2, len(chunks) - 1):
-    vector = index.reconstruct(i).reshape(1, -1)  # FAISS expects a 2D array (1 query)
-    scores, ids = index.search(vector, 1)
-    found, score = int(ids[0][0]), float(scores[0][0])
-    ok = found == i and abs(score - 1.0) < 1e-4
-    failed += not ok
-    print(f"  chunk {i:3} -> found chunk {found:3} | score {score:.4f} | "
-          f"{chunks[found]['source'][:30]}..., page {chunks[found]['page']} | {'OK' if ok else 'FAIL'}")
 
-if failed or index.ntotal != len(chunks):
-    sys.exit("Vector store check failed")
+def test_every_vector_finds_itself_with_score_one() -> None:
+    vectors = random_vectors(20)
+    index = build_index(vectors)
+    scores, ids = index.search(normalize_vectors(vectors[[3, 17]]), 1)
+    assert ids[:, 0].tolist() == [3, 17]
+    assert np.allclose(scores[:, 0], 1.0, atol=1e-5)
+
+
+def test_remove_paper_keeps_the_other_vectors_in_order() -> None:
+    vectors = random_vectors(6)
+    index = build_index(vectors)
+    chunks = chunks_for(["a.pdf", "b.pdf", "a.pdf", "c.pdf", "b.pdf", "c.pdf"])
+    new_index, new_chunks = remove_paper(index, chunks, "b.pdf")
+    assert [c["text"] for c in new_chunks] == ["chunk 0", "chunk 2", "chunk 3", "chunk 5"]
+    assert [c["chunk_id"] for c in new_chunks] == [0, 1, 2, 3]  # row i = chunk_id i again
+    assert np.allclose(all_vectors(new_index), normalize_vectors(vectors[[0, 2, 3, 5]]), atol=1e-6)
+
+    empty_index, empty = remove_paper(build_index(vectors[:1]), chunks_for(["a.pdf"]), "a.pdf")
+    assert empty == [] and empty_index.ntotal == 0 and all_vectors(empty_index).shape == (0, 384)
+
+
+def test_renumber() -> None:
+    chunks = chunks_for(["a", "b"])
+    chunks[0]["chunk_id"], chunks[1]["chunk_id"] = 7, 9
+    assert [c["chunk_id"] for c in renumber(chunks)] == [0, 1]
+
+
+def test_save_and_load(tmp_path: Path) -> None:
+    index = build_index(random_vectors(3))
+    save_store(index, chunks_for(["a", "a", "b"]), tmp_path / "nested" / "index", {"model_name": "m", "papers": {}})
+    loaded, chunks, info = load_store(tmp_path / "nested" / "index")
+    assert loaded.ntotal == 3 and len(chunks) == 3
+    assert info == {"model_name": "m", "papers": {}, "embedding_dimension": 384, "num_chunks": 3}
+
+
+def test_load_store_errors(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="Build the index first"):
+        load_store(tmp_path)
+    save_store(build_index(random_vectors(2)), chunks_for(["a"] * 3), tmp_path, {})  # 2 vectors, 3 chunks
+    with pytest.raises(ValueError, match="out of date"):
+        load_store(tmp_path)

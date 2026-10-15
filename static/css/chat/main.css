@@ -1,0 +1,82 @@
+/* Main chat area: header and the scrolling message list */
+
+/* ---------- Main area ---------- */
+
+.chat-main {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.chat-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.menu-btn {
+    display: none;
+}
+
+.select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 10px 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+
+.select-wrap:hover,
+.select-wrap:focus-within {
+    border-color: var(--cyan-line);
+}
+
+.select-wrap .icon {
+    color: var(--cyan);
+}
+
+.select-wrap select {
+    min-width: 0;
+    max-width: 380px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-overflow: ellipsis;
+}
+
+.select-wrap select:focus {
+    outline: none;
+}
+
+.select-wrap select:disabled {
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.select-wrap option {
+    background: var(--surface);
+    color: var(--text);
+}
+
+.select-k {
+    margin-left: auto;
+}
+
+.messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}

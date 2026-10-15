@@ -92,12 +92,13 @@ if (-not (Test-Port 11434)) {
 # ---------- 3. Start the server right away (fast mode) ----------
 # - scripts/serve.py: no debug mode (the app starts once) and it listens on both 127.0.0.1 and ::1,
 #   so http://localhost:5000 opens without waiting
-# - the embedding model loads in the background after the page opens (see app.py)
-# - Hugging Face offline mode when the model is already downloaded: no online checks
+# - the search models (embedding and re-ranker) load in the background after the page opens (see app.py)
+# - Hugging Face offline mode when both models are already downloaded: no online checks
 $env:PYTHONIOENCODING = "utf-8"
 $env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
 $hfHub = if ($env:HF_HOME) { Join-Path $env:HF_HOME "hub" } else { Join-Path $HOME ".cache\huggingface\hub" }
-if (Test-Path (Join-Path $hfHub "models--sentence-transformers--all-MiniLM-L6-v2")) { $env:HF_HUB_OFFLINE = "1" }
+$searchModels = @("models--sentence-transformers--all-MiniLM-L6-v2", "models--cross-encoder--ms-marco-MiniLM-L6-v2")
+if (-not ($searchModels | Where-Object { -not (Test-Path (Join-Path $hfHub $_)) })) { $env:HF_HUB_OFFLINE = "1" }
 
 Write-Host "Starting the server..."
 Write-Host "Dashboard: $url"

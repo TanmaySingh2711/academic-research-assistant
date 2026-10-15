@@ -60,35 +60,38 @@
 
     <!-- 1. How the project was built -->
     <section class="panel is-active" id="panel-built" role="tabpanel" aria-labelledby="tab-built">
-        <p class="panel-lead">The project was built in 11 small steps. Each step added one part of the RAG pipeline and was tested before the next one started.</p>
+        <p class="panel-lead">The project was built in 12 small steps. Each step added one part of the RAG pipeline and was tested before the next one started.</p>
         <div class="flow">
             <div class="flow-start">{{ icon('flag', 16) }} Empty folder</div>
             {{ arrow() }}
             <div class="flow-phase"><span>Phase 1: Foundation</span></div>
             {{ node("Project setup", "Folders, a Python 3.12 virtual environment, the libraries, and Ollama with the llama3.2:3b model.", 1, "requirements.txt") }}
             {{ arrow() }}
-            {{ node("Document loading", "Read every PDF page by page with pdfplumber and keep the filename and page number with each page.", 2, "src/loader.py") }}
+            {{ node("Document loading", "Read every PDF page by page with pdfplumber, remove headers, page numbers and the reference list, and read scanned pages with OCR.", 2, "src/loader.py") }}
             {{ arrow() }}
-            {{ node("Chunking", "Split each page into chunks of 100 words, with 20 words shared between neighbours, so no idea is cut in half.", 3, "src/chunker.py") }}
+            {{ node("Chunking", "Split each page into chunks of whole sentences, about 100 words, sharing the last sentence with the next chunk, so no idea is cut in half.", 3, "src/chunker.py") }}
             {{ arrow() }}
             <div class="flow-phase"><span>Phase 2: Search</span></div>
             {{ node("Embeddings", "Turn every chunk into 384 numbers that describe its meaning, with the all-MiniLM-L6-v2 model.", 4, "src/embedder.py") }}
             {{ arrow() }}
             {{ node("Vector database", "Store the vectors in a FAISS index and save it to disk next to the chunk text.", 5, "src/vector_store.py") }}
             {{ arrow() }}
-            {{ node("Retrieval", "Turn the question into numbers the same way and find the K chunks with the closest meaning.", 6, "src/retriever.py") }}
+            {{ node("Retrieval", "Search by meaning (FAISS) and by exact words (BM25), then let a re-ranker pick the K chunks that answer best.", 6, "src/retriever.py") }}
             {{ arrow() }}
             <div class="flow-phase"><span>Phase 3: Answering</span></div>
-            {{ node("Prompt construction", "Give the model clear rules, the numbered chunks as sources, and the question.", 7, "src/prompt_builder.py") }}
+            {{ node("Prompt construction", "Give the model clear rules, the earlier questions of the chat, the numbered chunks as sources, and the question.", 7, "src/prompt_builder.py") }}
             {{ arrow() }}
-            {{ node("Generation", "llama3.2:3b writes the answer through Ollama, with a low temperature (0.1) so it stays factual.", 8, "src/generator.py") }}
+            {{ node("Generation", "llama3.2:3b writes the answer through Ollama, word by word, with a low temperature (0.1) so it stays factual.", 8, "src/generator.py") }}
             {{ arrow() }}
             <div class="flow-phase"><span>Phase 4: Product</span></div>
             {{ node("Flask backend", "JSON routes to upload papers, build the index, ask questions and read the chat history.", 9, "app.py") }}
             {{ arrow() }}
             {{ node("Dashboard", "These pages, written in plain HTML, CSS and JavaScript, so they also work without internet.", 10, "templates/, static/") }}
             {{ arrow() }}
-            {{ node("Testing and release", "Test scripts, README, one-click setup scripts and CI checks on Windows, macOS and Linux.", 11, "tests/, .github/") }}
+            {{ node("Testing and release", "pytest tests, browser tests, README, one-click setup scripts and CI checks on Windows, macOS and Linux.", 11, "tests/, .github/") }}
+            {{ arrow() }}
+            <div class="flow-phase"><span>Phase 5: Quality</span></div>
+            {{ node("Evaluation", "68 questions with known pages measure how often the right chunk is found and the answer is right. Every change above was kept only if these numbers improved.", 12, "evaluation/") }}
             {{ arrow() }}
             <div class="flow-end">{{ icon('check', 16) }} Working local RAG assistant</div>
         </div>
@@ -124,18 +127,18 @@
                 <div class="lane-head">
                     <span class="badge badge-cyan">Build index</span>
                     <h3>When you click Build index</h3>
-                    <p>Runs once after you add papers. Route: <code>POST /process</code></p>
+                    <p>Runs after you add papers. Only new or changed papers are read. Route: <code>POST /process</code></p>
                 </div>
                 <div class="flow">
                     {{ node("PDFs in data/", "The papers you uploaded.", "A1") }}
                     {{ arrow() }}
-                    {{ node("Extract text per page", "pdfplumber reads each page and keeps its page number.", "A2") }}
+                    {{ node("Extract text per page", "pdfplumber reads each page. Headers, page numbers and references are removed, tables are written row by row, scans are read with OCR.", "A2") }}
                     {{ arrow() }}
-                    {{ node("Split into chunks", "100 words each, 20 words of overlap, never across two pages.", "A3") }}
+                    {{ node("Split into chunks", "Whole sentences, about 100 words, never across two pages. Each chunk keeps its section heading.", "A3") }}
                     {{ arrow() }}
                     {{ node("Embed every chunk", "all-MiniLM-L6-v2 turns each chunk into 384 numbers.", "A4") }}
                     {{ arrow() }}
-                    {{ node("Save the FAISS index", "Vectors in index/faiss.index, text and pages in index/chunks.json.", "A5") }}
+                    {{ node("Save the FAISS index", "New vectors are added to index/faiss.index, text and pages to index/chunks.json. The other papers are not touched.", "A5") }}
                 </div>
             </div>
 
@@ -143,18 +146,18 @@
                 <div class="lane-head">
                     <span class="badge badge-cyan">Ask</span>
                     <h3>When you ask a question</h3>
-                    <p>Runs for every question, in about 1 to 2 seconds. Route: <code>POST /ask</code></p>
+                    <p>Runs for every question. The first words appear after about 1 second. Route: <code>POST /ask</code></p>
                 </div>
                 <div class="flow">
-                    {{ node("Your question", "Plus the paper you picked and K. Only that paper is searched.", "B1") }}
+                    {{ node("Your question", "Plus the paper you picked, K and the earlier questions of the chat. Only that paper is searched.", "B1") }}
                     {{ arrow() }}
-                    {{ node("Embed the question", "Same model, so the question gets 384 numbers too.", "B2") }}
+                    {{ node("Two searches", "FAISS ranks the chunks by meaning, BM25 by the exact words. The two rankings are merged.", "B2") }}
                     {{ arrow() }}
-                    {{ node("Search the index", "FAISS finds the K closest chunks in the index from step A5 (about 10 ms).", "B3") }}
+                    {{ node("Re-rank", "A cross-encoder reads the question with each of the best 20 chunks and keeps the K that answer it (about 0.2 s).", "B3") }}
                     {{ arrow() }}
-                    {{ node("Build the prompt", "Rules, the chunks as [Source 1], [Source 2] and so on, then the question.", "B4") }}
+                    {{ node("Build the prompt", "Rules, the last two questions and answers, the chunks as [Source 1], [Source 2] and so on, then the question.", "B4") }}
                     {{ arrow() }}
-                    {{ node("llama3.2:3b answers", "It may only use the sources. If they do not help, it says it could not find it.", "B5") }}
+                    {{ node("llama3.2:3b answers", "Word by word, straight to the screen. It may only use the sources; if they do not help, it says it could not find it.", "B5") }}
                     {{ arrow() }}
                     {{ node("Answer on screen", "With the sources, their pages and scores. The chat is saved in chats/.", "B6") }}
                 </div>
@@ -176,13 +179,13 @@
             {{ arrow("Yes") }}
             {{ node("Pick a paper", "In the sidebar, click + next to a paper to start a new chat about it. A paper can have many chats.", icon_name="file") }}
             {{ arrow() }}
-            {{ node("Ask a question", "Type your own question, or click one of the questions the app suggests for that paper. Press Enter.", icon_name="chat") }}
+            {{ node("Ask a question", "Type your own question, or click one of the questions the app suggests for that paper. Press Enter. The answer appears word by word; the square button stops it.", icon_name="chat") }}
             {{ arrow() }}
             {{ decision("Is the answer in the papers?", "You see \"not found\"", "Try other words, or start a new chat about a different paper.") }}
             {{ arrow("Yes") }}
             {{ node("Check the sources", "Click a number like 1 in the answer, or open a source, to read the exact paragraph and page.", icon_name="book") }}
             {{ arrow() }}
-            {{ node("Keep going", "Ask more questions in the same chat, or click + next to a paper for a new chat.", icon_name="plus") }}
+            {{ node("Keep going", "Ask follow-up questions like: how was it evaluated? They refer to the chat so far. Or click + next to a paper for a new chat.", icon_name="plus") }}
             {{ arrow() }}
             <div class="flow-end">{{ icon('history', 16) }} Every chat is saved in the sidebar, grouped by paper</div>
         </div>

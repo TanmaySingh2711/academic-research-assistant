@@ -54,7 +54,7 @@ fi
 
 echo
 echo "Checking the setup..."
-venv/bin/python -m tests.verify_setup || true
+venv/bin/python scripts/verify_setup.py || true
 
 echo
 echo "Setup complete. Start the app with:"

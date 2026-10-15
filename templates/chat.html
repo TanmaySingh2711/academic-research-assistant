@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon, logo %}
 {% block title %}Assistant | Academic Research Assistant{% endblock %}
-{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">{% endblock %}
+{% block styles %}
+{# The Assistant styles, one file per part of the page. The order matters: later files can override earlier ones. #}
+{% for part in ['layout', 'paper-tree', 'menus', 'sidebar', 'main', 'empty-state', 'messages', 'composer', 'responsive'] %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat/' ~ part ~ '.css') }}">
+{% endfor %}
+{% endblock %}
 {% block body_class %}page-chat{% endblock %}
 
 {% block content %}
@@ -19,7 +24,7 @@
                 <button type="button" class="btn btn-ghost btn-small" id="build-button">{{ icon('database', 15) }} Build index</button>
             </div>
             <p class="build-progress" id="build-progress" role="status" hidden>
-                <span class="spinner"></span><span id="build-progress-text">Building the index, about 15 seconds...</span>
+                <span class="spinner"></span><span id="build-progress-text">Reading and indexing the new papers...</span>
             </p>
             <ul class="paper-tree" id="paper-list">
                 <li class="side-empty"><span class="skeleton" style="width: 80%"></span></li>
@@ -31,7 +36,7 @@
     <!-- Main chat area -->
     <section class="chat-main" id="chat-main">
         <header class="chat-header">
-            <button type="button" class="icon-btn menu-btn" id="menu-button" aria-label="Show papers and chats">{{ icon('menu') }}</button>
+            <button type="button" class="icon-btn menu-btn" id="menu-button" aria-label="Show papers and chats" aria-controls="sidebar" aria-expanded="false">{{ icon('menu') }}</button>
             <label class="select-wrap select-k" title="How many paper chunks the model reads for each answer">
                 {{ icon('layers', 16) }}
                 <span>Chunks</span>
@@ -64,7 +69,7 @@
                     <button type="button" class="btn btn-primary" id="build-prompt-button">{{ icon('database', 16) }} Build index</button>
                 </div>
 
-                <!-- Questions about the selected paper, written by the local model (filled by chat.js) -->
+                <!-- Questions about the selected paper, written by the local model (filled by js/chat/page.js) -->
                 <div class="suggest" id="suggest" hidden>
                     <p class="suggest-label" id="suggest-label">Suggested questions for this paper</p>
                     <div class="suggestions" id="suggestions"></div>
@@ -81,10 +86,10 @@
                 <textarea id="question" rows="1" placeholder="Ask about your papers..." aria-label="Your question"></textarea>
                 <button type="submit" class="send-btn" id="send-button" aria-label="Send" disabled>{{ icon('arrow-up') }}</button>
             </form>
-            <p class="composer-hint">Enter to send, Shift+Enter for a new line. Each question is answered on its own, only from your papers.</p>
+            <p class="composer-hint">Enter to send, Shift+Enter for a new line. Answers come only from the selected paper; follow-up questions can refer to earlier answers.</p>
         </div>
 
-        <!-- "Are you sure?" box for deleting a chat or a paper (filled by chat.js) -->
+        <!-- "Are you sure?" box for deleting a chat or a paper (filled by js/chat/menus.js) -->
         <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
             <form method="dialog">
                 <div class="dialog-icon">{{ icon('trash', 20) }}</div>
@@ -105,4 +110,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='js/chat/main.js') }}"></script>{% endblock %}

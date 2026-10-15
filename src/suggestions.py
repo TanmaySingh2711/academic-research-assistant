@@ -1,14 +1,16 @@
 """Suggested questions: the local model reads the start of a paper and writes a few questions about it.
 
-The questions are saved in index/suggestions.json, so each paper is read only once per index build.
+The questions are saved in index/suggestions.json, so each paper is read only once after it is indexed.
 """
 
 import json
 import re
 import threading
 from pathlib import Path
+from typing import Any
 
 from src.generator import generate_answer
+from src.schema import Chunk, Message
 
 NUMBER_OF_QUESTIONS = 4
 START_CHUNKS = 5  # the first chunks of a paper: usually title, abstract and introduction
@@ -22,7 +24,7 @@ SYSTEM_PROMPT = "You write short questions about research papers. Reply with the
 _LIST_MARKER = re.compile(r"^\s*(?:[-*" + chr(0x2022) + r"]|\d+[.)]|Q\d*[:.])\s*")
 
 
-def build_messages(paper_start):
+def build_messages(paper_start: str) -> list[Message]:
     """Chat messages that ask the model for questions about the start of a paper."""
     user = (
         f"Here is the start of a research paper:\n\n{paper_start}\n\n"
@@ -33,9 +35,9 @@ def build_messages(paper_start):
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
 
 
-def parse_questions(text, limit=NUMBER_OF_QUESTIONS):
+def parse_questions(text: str, limit: int = NUMBER_OF_QUESTIONS) -> list[str]:
     """Turn the model's reply into a clean list of questions (list markers removed, no duplicates)."""
-    questions = []
+    questions: list[str] = []
     for line in text.splitlines():
         question = _LIST_MARKER.sub("", line).strip().strip('"').strip()
         if not question.endswith("?") or not 12 <= len(question) <= 140:
@@ -45,26 +47,28 @@ def parse_questions(text, limit=NUMBER_OF_QUESTIONS):
     return questions[:limit]
 
 
-def _load(path):
+def _load(path: Path) -> dict[str, Any]:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        return saved if isinstance(saved.get("papers"), dict) else {"papers": {}}
+    except (OSError, ValueError, AttributeError):
+        return {"papers": {}}
 
 
-def get_suggestions(paper, chunks, info, index_dir):
+def get_suggestions(paper: str, chunks: list[Chunk], info: dict[str, Any], index_dir: str | Path) -> list[str]:
     """Return the questions for one paper: saved ones if they exist, otherwise ask the model once.
 
+    Saved questions belong to one indexing of the paper: when the paper is indexed again
+    (uploaded again, or the index was rebuilt), new questions are written.
     Raises ConnectionError / RuntimeError (from generate_answer) when Ollama is not available.
     """
     path = Path(index_dir) / SUGGESTIONS_FILE
+    version = info.get("papers", {}).get(paper, {}).get("indexed_at") or info.get("built_at")
     with _lock:
         saved = _load(path)
-        # Questions from an older index may belong to other papers or other text, so start fresh
-        if saved.get("built_at") != info.get("built_at"):
-            saved = {"built_at": info.get("built_at"), "papers": {}}
-        if paper in saved["papers"]:
-            return saved["papers"][paper]
+        entry = saved["papers"].get(paper)
+        if isinstance(entry, dict) and entry.get("indexed_at") == version:
+            return list(entry["questions"])
 
         start = [chunk["text"] for chunk in chunks if chunk["source"] == paper][:START_CHUNKS]
         if not start:
@@ -73,6 +77,15 @@ def get_suggestions(paper, chunks, info, index_dir):
         questions = parse_questions(reply["answer"])
 
         if questions:  # an empty or odd reply is not saved, so the next visit tries again
-            saved["papers"][paper] = questions
+            saved["papers"][paper] = {"indexed_at": version, "questions": questions}
             path.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
         return questions
+
+
+def forget(paper: str, index_dir: str | Path) -> None:
+    """Remove the saved questions of a deleted paper."""
+    path = Path(index_dir) / SUGGESTIONS_FILE
+    with _lock:
+        saved = _load(path)
+        if saved["papers"].pop(paper, None) is not None:
+            path.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")

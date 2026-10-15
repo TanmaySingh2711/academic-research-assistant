@@ -1,0 +1,286 @@
+[
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Where does the author work?",
+    "type": "fact",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "Tencent"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What does the high-level module of the testing system do?",
+    "type": "fact",
+    "pages": [
+      1,
+      2
+    ],
+    "keywords": [
+      [
+        "where"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Why is reinforcement learning expensive for game testing?",
+    "type": "paraphrase",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "computationally",
+        "temporally",
+        "hyperparameters",
+        "demanding",
+        "costly"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Which surrogate models are commonly used in Bayesian Optimization?",
+    "type": "fact",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "Gaussian Process"
+      ],
+      [
+        "Tree Parzen"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Why do traditional surrogate models not work for level exploration?",
+    "type": "paraphrase",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "millions",
+        "scale",
+        "large"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "How does the proposed model store the collected data?",
+    "type": "fact",
+    "pages": [
+      2,
+      3
+    ],
+    "keywords": [
+      [
+        "grid map"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What is the complexity of the grid based model with respect to the number of samples?",
+    "type": "number",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "O(1)",
+        "constant"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What is the prediction complexity of a Gaussian Process?",
+    "type": "number",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "O(n3)",
+        "n3",
+        "n^3",
+        "cubic"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Which acquisition function is used?",
+    "type": "fact",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "Lower Confidence Bound",
+        "LCB"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "How is the uncertainty estimated in the grid map model?",
+    "type": "paraphrase",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "occupancy"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Which game engines were used in the experiments?",
+    "type": "fact",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "Unity"
+      ],
+      [
+        "Unreal"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What is the baseline system in the experiments?",
+    "type": "fact",
+    "pages": [
+      3,
+      4
+    ],
+    "keywords": [
+      [
+        "random"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What is the ghost wall used for?",
+    "type": "fact",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "exploratory",
+        "uncertainty",
+        "bug"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What map coverage did the full system with adaptive exploration reach in Table I?",
+    "type": "table",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "2.52"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "How long and how many times was each agent tested for Table I?",
+    "type": "number",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "hour"
+      ],
+      [
+        "20"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "What GPU was used to train the agents?",
+    "type": "not_found"
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "How many players took part in a user study?",
+    "type": "not_found"
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Which hyperparameter controls its trade-off?",
+    "type": "follow_up",
+    "history": [
+      "Which acquisition function is used?"
+    ],
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "σ f",
+        "σf",
+        "sigma"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Where did it spend most of its time?",
+    "type": "follow_up",
+    "history": [
+      "What is the baseline system in the experiments?"
+    ],
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "center",
+        "central"
+      ]
+    ]
+  },
+  {
+    "paper": "Bayesian_Optimization-based_Search_for_Agent_Control_in_Automated_Game_Testing.pdf",
+    "question": "Which game engines were used in the experiments?",
+    "type": "topic_change",
+    "history": [
+      "What is the ghost wall used for?"
+    ],
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "Unity"
+      ],
+      [
+        "Unreal"
+      ]
+    ]
+  }
+]

@@ -18,3 +18,35 @@ cache_dir = "$MYPY_CONFIG_FILE_DIR/.cache/mypy"
 exclude = ["^venv/", "^\\.cache/"]
 # faiss and pdfplumber ship without type information
 ignore_missing_imports = true
+# Every function in the app must say what it takes and returns, and mypy checks the bodies.
+# The tests may leave out type hints (they are short scripts that pytest calls).
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+cache_dir = ".cache/pytest"
+testpaths = ["tests"]
+markers = [
+    "ollama: needs the Ollama server with llama3.2:3b (skipped when Ollama is not running)",
+    "browser: drives a real browser, Edge or Chrome (skipped when none is installed)",
+]
+
+[tool.coverage.run]
+data_file = ".cache/coverage/data"
+source_pkgs = ["src", "app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+
+[tool.coverage.html]
+directory = ".cache/coverage/html"

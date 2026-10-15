@@ -1,18 +1,20 @@
 """Vector store: keep chunk vectors in a FAISS index and save/load it with the chunk metadata."""
 
 import json
-from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import faiss
 import numpy as np
+
+from src.schema import Chunk
 
 INDEX_FILE = "faiss.index"
 CHUNKS_FILE = "chunks.json"
 INFO_FILE = "info.json"
 
 
-def normalize_vectors(vectors):
+def normalize_vectors(vectors: Any) -> np.ndarray:
     """Scale every row to length 1 (divide each row by its own norm)."""
     vectors = np.asarray(vectors, dtype=np.float32)
     # Norm (length) of each row: sqrt(x1^2 + x2^2 + ... + xn^2), kept as a column for broadcasting
@@ -22,7 +24,7 @@ def normalize_vectors(vectors):
     return (vectors / norms).astype(np.float32)
 
 
-def build_index(vectors):
+def build_index(vectors: Any) -> Any:
     """Normalize the vectors and put them in a FAISS IndexFlatIP."""
     vectors = normalize_vectors(vectors)
     dimension = vectors.shape[1]  # 384 for all-MiniLM-L6-v2
@@ -37,29 +39,41 @@ def build_index(vectors):
     return index
 
 
-def remove_paper(index, chunks, source):
+def all_vectors(index: Any) -> np.ndarray:
+    """Every stored vector, row i = vector i. A Flat index keeps them unchanged, so they can be read back."""
+    if index.ntotal == 0:
+        return np.zeros((0, index.d), dtype=np.float32)
+    return index.reconstruct_n(0, index.ntotal)
+
+
+def remove_paper(index: Any, chunks: list[Chunk], source: str) -> tuple[Any, list[Chunk]]:
     """Return a new (index, chunks) without one paper. Nothing is embedded again, so it is fast.
 
-    A Flat index keeps the vectors as they are, so they can be read back and copied,
-    leaving out the rows of that paper. Row i still matches chunks[i] afterwards.
+    The other vectors are copied as they are, leaving out the rows of that paper.
+    Row i still matches chunks[i] afterwards.
     """
     keep = [row for row, chunk in enumerate(chunks) if chunk["source"] != source]
-    vectors = index.reconstruct_n(0, index.ntotal)  # all stored vectors (already normalized)
     new_index = faiss.IndexFlatIP(index.d)
     if keep:
-        new_index.add(vectors[keep])
-    return new_index, [chunks[row] for row in keep]
+        new_index.add(all_vectors(index)[keep])
+    return new_index, renumber([chunks[row] for row in keep])
 
 
-def save_store(index, chunks, index_dir="index", model_name="all-MiniLM-L6-v2", chunk_size=100, overlap=20,
-               built_at=None):
-    """Save the index, the chunks (same order as the vectors) and build info to index_dir.
+def renumber(chunks: list[Chunk]) -> list[Chunk]:
+    """Make chunk_id equal to the row number again (after chunks were removed or added)."""
+    for row, chunk in enumerate(chunks):
+        chunk["chunk_id"] = row
+    return chunks
 
-    built_at: when the index was built (default: now). Removing a paper keeps the old time,
-    because the other papers were not indexed again.
+
+def save_store(index: Any, chunks: list[Chunk], index_dir: str | Path, info: dict[str, Any]) -> None:
+    """Save the index, the chunks (same order as the vectors) and the build info to index_dir.
+
+    info holds how the index was built (model, chunk size, ...) and one entry per indexed paper
+    (see src/ingest.py); the vector count and size are filled in here.
     """
     index_dir = Path(index_dir)
-    index_dir.mkdir(exist_ok=True)
+    index_dir.mkdir(parents=True, exist_ok=True)
 
     faiss.write_index(index, str(index_dir / INDEX_FILE))
 
@@ -67,19 +81,12 @@ def save_store(index, chunks, index_dir="index", model_name="all-MiniLM-L6-v2", 
     with open(index_dir / CHUNKS_FILE, "w", encoding="utf-8") as f:
         json.dump(chunks, f, ensure_ascii=False, indent=2)
 
-    info = {
-        "model_name": model_name,
-        "embedding_dimension": index.d,
-        "num_chunks": len(chunks),
-        "chunk_size": chunk_size,
-        "overlap": overlap,
-        "built_at": built_at or datetime.now().isoformat(timespec="seconds"),
-    }
+    info = {**info, "embedding_dimension": index.d, "num_chunks": len(chunks)}
     with open(index_dir / INFO_FILE, "w", encoding="utf-8") as f:
         json.dump(info, f, indent=2)
 
 
-def load_store(index_dir="index"):
+def load_store(index_dir: str | Path = "index") -> tuple[Any, list[Chunk], dict[str, Any]]:
     """Load and return (index, chunks, info) from index_dir."""
     index_dir = Path(index_dir)
     paths = [index_dir / INDEX_FILE, index_dir / CHUNKS_FILE, index_dir / INFO_FILE]

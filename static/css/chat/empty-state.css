@@ -1,0 +1,182 @@
+/* The page before the first question: upload card, Build index prompt, suggested questions */
+
+/* ---------- Empty state ---------- */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 9vh 20px 30px;
+    text-align: center;
+    animation: fadeUp 0.6s var(--ease) both;
+}
+
+.empty-state[hidden] {
+    display: none;
+}
+
+.empty-logo {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 76px;
+    height: 76px;
+    border: 1px solid var(--cyan-line);
+    border-radius: 22px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    animation: glow 3.2s ease-in-out infinite;
+}
+
+.empty-state h1 {
+    margin: 22px 0 8px;
+    font-size: 1.8rem;
+}
+
+.empty-state > p {
+    margin: 0 0 28px;
+    color: var(--text-muted);
+}
+
+/* Suggested questions for the selected paper */
+.suggest {
+    width: 100%;
+}
+
+.suggest[hidden] {
+    display: none;
+}
+
+.suggest-label {
+    margin: 0 0 10px;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.suggestions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+}
+
+.suggestion {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 56px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.25s var(--ease), border-color 0.25s, background 0.25s;
+    animation: fadeUp 0.5s var(--ease) both;
+}
+
+.suggestion .icon {
+    margin-top: 3px;
+    color: var(--cyan);
+}
+
+.suggestion:hover {
+    transform: translateY(-2px);
+    border-color: var(--cyan-line);
+    background: var(--surface-2);
+}
+
+/* Grey placeholder while the model writes the questions */
+.suggestion.is-loading {
+    align-items: center;
+    cursor: default;
+}
+
+.suggestion.is-loading:hover {
+    transform: none;
+    border-color: var(--border);
+    background: var(--surface);
+}
+
+.suggestion.is-loading .skeleton {
+    width: 85%;
+    height: 12px;
+}
+
+/* ---------- Default page: upload a paper, or pick one ---------- */
+
+.start-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    width: 100%;
+}
+
+.start-panel[hidden],
+.build-prompt[hidden] {
+    display: none;
+}
+
+/* Big dashed card: click to choose PDFs (dropping files anywhere on the page also works) */
+.upload-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 30px 20px;
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.25s, background 0.25s, transform 0.25s var(--ease);
+    animation: fadeUp 0.5s var(--ease) both;
+}
+
+.upload-card:hover {
+    border-color: var(--cyan);
+    background: var(--cyan-soft);
+    transform: translateY(-2px);
+}
+
+.upload-card:hover .upload-card-icon {
+    transform: translateY(-3px);
+}
+
+.upload-card-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 6px;
+    border: 1px solid var(--cyan-line);
+    border-radius: 14px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    transition: transform 0.3s var(--ease);
+}
+
+.upload-card strong {
+    font-size: 1.02rem;
+}
+
+.upload-card span:last-child {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+/* A paper that is not in the index yet: one clear button */
+.build-prompt {
+    animation: fadeUp 0.4s var(--ease) both;
+}

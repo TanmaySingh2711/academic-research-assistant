@@ -27,7 +27,7 @@ jobs:
       - run: ruff check . --output-format github
 
   typecheck:
-    name: Type check (mypy)
+    name: Type check (mypy, strict for app code)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
       # CPU-only PyTorch: much smaller than the default CUDA build on Linux
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r requirements-dev.txt
-      - run: mypy app.py src tests scripts
+      - run: mypy app.py src scripts evaluation tests
 
   setup:
     name: One-click setup (${{ matrix.os }})
@@ -54,6 +54,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # OpenCV (used by the offline OCR) needs the OpenGL library on Linux
+      - name: System library for OCR (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libgl1
       # Ollama must be installed by the user; the setup script then pulls the model itself
       - uses: ./.github/actions/setup-ollama
         with:
@@ -103,31 +107,46 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements*.txt
-      - name: Install CPU-only PyTorch (Linux)
+      - name: System library for OCR and CPU-only PyTorch (Linux)
         if: runner.os == 'Linux'
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -r requirements.txt
+        run: |
+          sudo apt-get install -y libgl1
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r requirements-dev.txt
+      - name: Download the search models
+        run: python scripts/verify_setup.py
       - uses: ./.github/actions/setup-ollama
 
-      # The real papers are not in the repo, so CI uses generated sample PDFs
-      - name: Create sample PDFs
-        run: python -m tests.make_sample_pdfs
-      - name: Build the index
-        run: python scripts/build_index.py
-
-      - name: Run the test scripts
-        shell: bash
-        run: |
-          for t in verify_setup test_loader test_chunker test_embedder test_vector_store \
-                   test_retriever test_prompt_builder test_generator test_chat_store test_suggestions \
-                   test_app test_dashboard; do
-            echo "::group::$t"
-            python -m "tests.$t"
-            echo "::endgroup::"
-          done
+      # Every test: unit tests, the Flask routes, the browser tests (with the Chrome/Edge that
+      # the CI machine already has) and the tests with the real llama3.2:3b
+      - name: Run the tests with coverage
+        run: python -m coverage run -m pytest -ra
+      - name: Coverage (must stay above 90%)
+        run: python -m coverage report --fail-under=90
 
       - name: No __pycache__ outside venv/
         shell: bash
         run: |
           found=$(find . -name __pycache__ -not -path "./venv/*")
           if [ -n "$found" ]; then echo "__pycache__ found:"; echo "$found"; exit 1; fi
+
+  evaluation:
+    name: Answer quality (evaluation set)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: |
+          sudo apt-get install -y libgl1
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+      - uses: ./.github/actions/setup-ollama
+      # 68 questions about the 4 evaluation papers: the right chunk must be found and the answer must be right
+      - run: python -m evaluation.evaluate --answers --min-hit3 0.95 --min-correct 0.9

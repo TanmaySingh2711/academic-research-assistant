@@ -47,7 +47,8 @@ if errorlevel 1 goto :pull_failed
 
 echo.
 echo Checking the setup...
-venv\Scripts\python.exe -m tests.verify_setup
+venv\Scripts\python.exe scripts\verify_setup.py
+if errorlevel 1 goto :check_failed
 echo.
 echo Setup complete. Start the app by double-clicking run_dashboard.bat
 set "RC=0"
@@ -78,6 +79,11 @@ goto :end
 :pull_failed
 echo ERROR: Could not download llama3.2:3b.
 echo Make sure the Ollama app is running, then run setup.bat again.
+goto :end
+
+:check_failed
+echo ERROR: The setup check failed (a library or a search model is missing). Read the messages above.
+echo Check your internet connection and run setup.bat again.
 goto :end
 
 :end

@@ -9,38 +9,45 @@ Everything runs on your own computer: no API keys, no paid services and no cloud
 ## Features
 
 - A 3-page dashboard in a black and cyan theme: Overview, Assistant and How it works
-- Chat interface in the style of ChatGPT, Claude and Gemini: message bubbles, a typing effect, Enter to send
-- Upload PDFs with the clip button or by dropping them on the page, then build the search index with one click
+- Chat interface in the style of ChatGPT, Claude and Gemini: answers appear word by word as the model writes them, and a Stop button ends an answer early
+- Follow-up questions: "how was it evaluated?" refers to the chat so far
+- Upload PDFs with the clip button or by dropping them on the page, then build the search index with one click. Build index only reads the papers that are new or changed
+- Scanned (image-only) pages are read with OCR, offline
 - Every chat is about one paper, and a paper can have many chats
 - Sidebar: "All papers" holds every paper, and every paper is a dropdown with its own chats
-- Rename and delete chats, and delete papers (the paper's chats and chunks are removed at once; other papers are not indexed again, only Build index does that)
+- Rename and delete chats, and delete papers. Deleting is instant and does only that: the paper's chats and chunks are removed, other papers are not indexed again
 - Suggested questions for each paper: the local model reads the start of the paper and writes a few questions about it
-- Sources for every answer: paper, page and similarity score; click a citation number to open the exact chunk text
+- Sources for every answer: paper, page and a relevance score; click a citation number to open the exact chunk text
 - Chat history saved on your computer and listed by paper in the assistant's sidebar
 - Choose how many chunks the model reads (K = 1, 3 or 5)
 - Says "I could not find this in the uploaded papers." when the papers do not contain the answer
 - Shows prompt tokens, answer tokens and response time for each answer
 - Flowcharts that show how the project was built, how it works inside and the user flow
 - Works offline: plain HTML, CSS and JavaScript, no CDN or external fonts
+- Measured quality: an evaluation set of 88 questions, run in CI (see "Evaluation")
 
 ## How it works
 
 ```
-Ingestion (Build index)
+Ingestion (Build index, only for new or changed papers)
 PDF files in data/
-  -> text per page (pdfplumber), keeping filename and page number
-  -> chunks of 100 words with 20 words overlap, page by page
-  -> embeddings (all-MiniLM-L6-v2, 384 numbers per chunk)
-  -> normalized and stored in FAISS (IndexFlatIP = cosine similarity)
-  -> saved to index/ (faiss.index, chunks.json, info.json)
+  -> text per page (pdfplumber; OCR for scanned pages)
+  -> clean-up: running headers, page numbers, rotated arXiv stamps and the reference list are removed,
+     tables are written row by row ("Sky Hop: Playable (GA) 91.5, ...")
+  -> chunks of whole sentences, about 100 words, sharing their last sentence with the next chunk;
+     each table gets its own chunk; a chunk in the middle of a section gets the section heading;
+     abbreviations are explained ("Abbreviations: RL = Reinforcement Learning")
+  -> embeddings (all-MiniLM-L6-v2, 384 numbers per chunk), normalized, added to FAISS (IndexFlatIP)
+  -> saved to index/ (faiss.index, chunks.json, info.json with one entry per paper)
 
 Question (Ask)
-question
-  -> embedding with the same model, normalized
-  -> FAISS search for the top-K most similar chunks
-  -> prompt: rules + numbered sources ([Source 1], [Source 2], ...) + question
-  -> llama3.2:3b via Ollama (temperature 0.1)
-  -> answer + sources shown in the dashboard
+question (+ the previous question of the chat, for follow-ups)
+  -> two searches over the chosen paper: FAISS (meaning) and BM25 (exact words)
+  -> the two rankings are merged (reciprocal rank fusion)
+  -> a cross-encoder re-ranks the best 20 chunks and keeps the top K
+  -> prompt: rules + the last 2 questions and answers + numbered sources ([Source 1], ...) + question
+  -> llama3.2:3b via Ollama (temperature 0.1, fixed seed), streamed word by word to the page
+  -> answer + sources, saved in chats/
 ```
 
 ## Tech stack
@@ -48,46 +55,58 @@ question
 | Part | Tool |
 |---|---|
 | Language | Python 3.12 (3.10 to 3.12 supported) |
-| PDF text extraction | pdfplumber |
+| PDF text extraction | pdfplumber, RapidOCR (ONNX, offline) for scanned pages |
 | Embeddings | sentence-transformers, model `all-MiniLM-L6-v2` |
+| Keyword search | BM25, written in `src/bm25.py` |
+| Re-ranking | sentence-transformers cross-encoder `cross-encoder/ms-marco-MiniLM-L6-v2` |
 | Vector search | faiss-cpu (`IndexFlatIP`) |
 | Local LLM | Ollama with `llama3.2:3b` |
-| Web backend | Flask |
-| Dashboard | plain HTML, CSS and vanilla JavaScript |
+| Web backend | Flask (answers streamed as NDJSON) |
+| Dashboard | plain HTML, CSS and JavaScript modules |
+| Tests | pytest, Playwright (with the Edge or Chrome you already have), coverage |
 
 ## Project structure
 
 ```
 academic-research-assistant/
-|-- app.py                  Flask backend: routes /, /upload, /process, /ask, /status
+|-- app.py                  Flask backend: pages and the JSON API
 |-- setup.bat / setup.sh    One-click setup (Windows / macOS and Linux)
 |-- run_dashboard.bat       Start the dashboard on Windows (double-click)
 |-- requirements.txt        Python libraries (pinned versions)
-|-- requirements-dev.txt    Extra tools for development and CI (ruff, mypy)
-|-- pyproject.toml          Settings for ruff and mypy
+|-- requirements-dev.txt    Extra tools for development and CI (ruff, mypy, pytest, Playwright, coverage)
+|-- pyproject.toml          Settings for ruff, mypy, pytest and coverage
 |-- LICENSE                 All rights reserved
 |-- data/                   Your PDFs go here (not included in the repo)
 |-- index/                  Saved FAISS index and chunk metadata (generated, not in the repo)
-|-- .cache/                 All tool caches (generated, not in the repo)
+|-- chats/                  Saved chat history (generated, not in the repo)
+|-- .cache/                 All caches and generated files of the tools (not in the repo)
 |-- .github/                CI workflow and the Ollama setup step it uses
+|-- evaluation/
+|   |-- corpus.py           4 synthetic papers laid out like real ones (headers, stamps, tables, references)
+|   |-- questions.json      68 questions about them, each with its page and the facts the answer needs
+|   |-- real_paper_questions.json  20 questions about one real paper (only runs if you have that paper)
+|   `-- evaluate.py         Measures retrieval (Hit@K, MRR) and answers (correct, cited)
 |-- scripts/
 |   |-- run_dashboard.ps1   Launcher used by run_dashboard.bat
 |   |-- serve.py            Runs the app on http://localhost:5000
-|   |-- build_index.py      Rebuild the index from the terminal
+|   |-- build_index.py      Build the index from the terminal (--full to rebuild everything)
+|   |-- verify_setup.py     Checks the setup and downloads the two search models once
 |   `-- configure_venv.py   Sends the project's Python cache files to .cache/pycache/
 |-- src/
-|   |-- loader.py           Read PDFs page by page and clean the text
-|   |-- chunker.py          Split pages into overlapping word chunks
+|   |-- schema.py           The shapes of the dictionaries (Page, Chunk, SearchResult, ...) for type hints
+|   |-- loader.py           Read PDFs page by page, remove headers, stamps and references, tables, OCR
+|   |-- chunker.py          Sentence chunks, table chunks, section headings, abbreviations
 |   |-- embedder.py         Turn text into vectors with all-MiniLM-L6-v2
-|   |-- vector_store.py     Normalize vectors, build, save and load the FAISS index
-|   |-- ingest.py           Full ingestion: load -> chunk -> embed -> index -> save
-|   |-- retriever.py        Embed a question and find the top-K chunks
-|   |-- prompt_builder.py   System prompt, numbered context and sources
-|   |-- generator.py        Call Ollama, token counts, "not found" check
-|   |-- rag_pipeline.py     answer_question(): retrieve -> prompt -> generate
+|   |-- vector_store.py     Normalize vectors, build, save and load the FAISS index, remove a paper
+|   |-- ingest.py           Build index: only new and changed papers are read and embedded
+|   |-- bm25.py             Keyword search
+|   |-- reranker.py         Cross-encoder re-ranking
+|   |-- retriever.py        Vector, keyword and hybrid search, re-ranking, follow-up questions
+|   |-- prompt_builder.py   System prompt, earlier turns, numbered context and sources
+|   |-- generator.py        Call Ollama (whole answer or word by word), token counts, "not found" check
+|   |-- rag_pipeline.py     answer_question() and answer_question_stream(): retrieve -> prompt -> generate
 |   |-- chat_store.py       Save and list chats (one JSON file per chat in chats/)
 |   `-- suggestions.py      Suggested questions for a paper (saved in index/suggestions.json)
-|-- chats/                  Saved chat history (generated, not in the repo)
 |-- templates/
 |   |-- base.html           Shared layout: top bar and navigation
 |   |-- overview.html       Page 1: what the project is
@@ -95,14 +114,16 @@ academic-research-assistant/
 |   |-- how_it_works.html   Page 3: three flowcharts
 |   `-- _icons.html         Line icons and the logo as inline SVG
 |-- static/
-|   |-- css/                One shared stylesheet (base.css) plus one per page
-|   |-- js/                 common.js (shared helpers), chat.js and how.js
+|   |-- css/                base.css (shared), one file per page, and chat/ (one file per part of the Assistant)
+|   |-- js/                 common.js (shared helpers), how.js, and chat/ (the Assistant, 8 small modules)
 |   `-- img/logo.svg        App icon
-`-- tests/
-    |-- verify_setup.py     Check that libraries are installed and Ollama is reachable
-    |-- make_sample_pdfs.py Create 3 synthetic sample PDFs (used by CI)
-    `-- test_*.py           One test script per step of the pipeline (see "Running the tests")
+`-- tests/                  pytest tests (see "Running the tests")
 ```
+
+The Assistant page's JavaScript is split by job: `state.js` (shared state), `sidebar.js` (papers and chats),
+`page.js` (status, Build index button, suggestions), `messages.js` (answers and sources), `chats.js`
+(asking and streaming), `papers.js` (upload, build, delete), `menus.js` (menus and dialogs) and `main.js`
+(events and start). They are standard ES modules, so no build tool is needed.
 
 ## Setup
 
@@ -111,9 +132,9 @@ academic-research-assistant/
 1. Install Python 3.10, 3.11 or 3.12, and Ollama from https://ollama.com/download
 2. Run the setup script in the project folder:
    - Windows: double-click `setup.bat`
-   - macOS / Linux: `bash setup.sh`
+   - macOS / Linux: `bash setup.sh` (on Linux, OCR needs the OpenGL library: `sudo apt-get install libgl1`)
 
-The script creates the venv, installs the libraries, sets Python to keep its cache files in `.cache/pycache/`, downloads `llama3.2:3b` (about 2 GB) and checks the setup. You can run it again at any time; steps that are already done are skipped.
+The script creates the venv, installs the libraries, sets Python to keep its cache files in `.cache/pycache/`, downloads `llama3.2:3b` (about 2 GB) and the two search models (about 110 MB), and checks the setup. You can run it again at any time; steps that are already done are skipped.
 
 ### Manual setup
 
@@ -145,16 +166,14 @@ The script creates the venv, installs the libraries, sets Python to keep its cac
    ollama pull llama3.2:3b
    ```
 
-6. Optional: check the setup.
+6. Check the setup. This also downloads the embedding model and the re-ranker from Hugging Face once (no account or token needed); after that everything runs offline.
    ```
-   python -m tests.verify_setup
+   python scripts/verify_setup.py
    ```
-
-The first time the app embeds text, sentence-transformers downloads `all-MiniLM-L6-v2` (about 90 MB) from Hugging Face. No account or token is needed. After that everything runs offline.
 
 ## How to run
 
-**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://localhost:5000 when the server is ready (about 3 seconds), and one press of **Esc** stops the server and closes the window (QuickEdit is turned off for this window, so clicking into it does not pause the server). If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the embedding model and `llama3.2:3b` load in the background, so the first answer is fast too.
+**Windows, one click:** double-click `run_dashboard.bat`. The window opens in the center of the screen, the dashboard opens at http://localhost:5000 when the server is ready (about 3 seconds), and one press of **Esc** stops the server and closes the window (QuickEdit is turned off for this window, so clicking into it does not pause the server). If an older dashboard is still running on port 5000, the launcher restarts it so the newest code runs. It also starts Ollama if it is not running, and the search models and `llama3.2:3b` load in the background, so the first answer is fast too.
 
 **Any OS, from a terminal:**
 
@@ -176,131 +195,159 @@ The first time the app embeds text, sentence-transformers downloads `all-MiniLM-
 | How it works | `/how-it-works` | Three flowcharts: how it was built, how it works inside, and the user flow |
 
 1. The Assistant page always opens on a default page (like a new chat in ChatGPT): upload one or more PDFs there, or pick a paper. Opening the dashboard fresh never reopens the last chat; a reload while it runs keeps the open chat.
-2. Click **Build index** (on the page of a new paper, or in the sidebar). For 3 papers this took about 13 to 19 seconds on a CPU.
-3. In the sidebar, click **+** next to a paper to start a new chat about it. The assistant suggests a few questions about that paper (a few seconds the first time). Click one, or type your own question and press Enter.
-4. Open the sources under the answer to check the exact text. Each chat is saved in the sidebar, under its paper.
-5. Use the **...** button next to a chat to rename or delete it, or next to a paper to delete the paper with all its chats.
+2. A new paper opens its own page with a **Build index** button. Only new or changed papers are read, so adding one paper takes a few seconds no matter how many are already indexed.
+3. Click a paper (or **+** next to it) to start a new chat about it. The assistant suggests a few questions about that paper (a few seconds the first time). Click one, or type your own question and press Enter. Follow-up questions can refer to the earlier answers.
+4. The answer appears word by word; the square button stops it (the part already written is kept). Open the sources under the answer to check the exact text.
+5. Use the **...** button next to a chat to rename or delete it, or next to a paper to delete the paper with all its chats. The menus also work with the keyboard (Tab, Enter, arrow keys, Esc).
 
-To rebuild the index from the terminal instead (for example after copying PDFs into `data/` by hand):
+To build the index from the terminal instead (for example after copying PDFs into `data/` by hand):
 ```
-python scripts/build_index.py
+python scripts/build_index.py          # new and changed papers
+python scripts/build_index.py --full   # every paper again
 ```
 
-Uploading a PDF does not change the answers until you build the index again.
+Uploading a PDF does not change the answers until you build the index. When a new version of the app reads PDFs or makes chunks differently, every paper shows as "needs indexing" again (and stays searchable until you click Build index).
+
+## Evaluation
+
+`evaluation/` holds a question set with known answers, so every change to the pipeline can be measured instead of guessed:
+
+- `corpus.py` writes 4 synthetic papers (24 pages) that look like real ones to the PDF reader: a running header and a page number on every page, a rotated arXiv stamp, a results table drawn with lines and a reference list. Real papers cannot be put in the repo (they belong to their authors).
+- `questions.json` has 68 questions: facts, numbers, paraphrases, table values, follow-ups ("And its recall?"), follow-ups that change the topic, and questions whose answer is not in the paper. Each lists the correct page and the facts a correct answer must contain.
+- `real_paper_questions.json` has 20 questions about one real paper (Celemin, "Bayesian Optimization-based Search for Agent Control in Automated Game Testing", IEEE CoG 2024). It runs only if that PDF is on your computer.
+
+Measures:
+
+- **Hit@K**: share of questions where the chunk with the answer (correct page and the expected facts) is in the top K results
+- **MRR**: mean reciprocal rank of that chunk (1 = always first)
+- **Correct**: the answer contains every expected fact, or says "not found" when it should
+- **Cited**: the answer cites a `[Source N]` from the correct page
+
+```
+python -m evaluation.evaluate                     # retrieval only (about a minute)
+python -m evaluation.evaluate --answers           # also the answers (needs Ollama, a few minutes)
+python -m evaluation.evaluate --method compare    # vector vs bm25 vs hybrid vs re-ranked
+python -m evaluation.evaluate --answers --data data --questions evaluation/real_paper_questions.json
+```
+
+The index for the evaluation is built in `.cache/eval/`, so your own index is never touched.
+
+**Results** (K = 3, CPU, llama3.2:3b). "Before" is the first version of this project (vector search, 100-word chunks, no PDF clean-up, no chat memory), measured with the same questions:
+
+| | Synthetic papers, before | Synthetic papers, now | Real paper, before | Real paper, now |
+|---|---|---|---|---|
+| Hit@1 | 60.0% | **88.3%** | 44.4% | **83.3%** |
+| Hit@3 | 88.3% | **98.3%** | 66.7% | **100%** |
+| MRR | 0.754 | **0.931** | 0.599 | **0.907** |
+| Correct answers | 86.8% | **97.1%** | 65.0% | **90 to 95%** |
+| Cited the correct page | 81.7% | **90 to 92%** | 44.4% | **94.4%** |
+
+The retrieval numbers are the same on every run. The answer numbers can move by one or two questions between runs (the model runs with a fixed seed, but Ollama is not fully deterministic), so they are given as a range where they moved.
+
+What each change did (retrieval on the synthetic set unless noted):
+
+| Change | Effect |
+|---|---|
+| Remove headers, page numbers, stamps and references; write tables row by row | answers 84.4% -> 87.5% |
+| BM25 + FAISS (hybrid) | Hit@3 87.5% -> 92.9%, MRR 0.770 -> 0.820 |
+| Cross-encoder re-ranking | Hit@1 64.3% -> 92.9%, MRR 0.770 -> 0.949 (paraphrased questions gain the most) |
+| Sentence chunks and table chunks | Hit@3 94.6% -> 98.2% |
+| Chat history in the prompt, previous question in the search | follow-up answers 4/8 -> 8/8 |
+| History inside the user message instead of as chat turns | a small model answered "not found" after a topic change; now 4/4 |
+| Abbreviations, at least one carried sentence, section headings in chunks | real paper: Hit@3 88.9% -> 100%, MRR 0.852 -> 0.907, answers 80% -> 90% |
+| "Put [Source N] after every fact" in the prompt | real paper: cited the correct page 78% -> 94% |
+
+Changes that were measured and **not** kept: a larger re-ranker (MiniLM-L12, same results, about 3 times slower), the bge-small embedding model (better alone, same after re-ranking), 200-word chunks (better on the real paper, worse on the synthetic set), 150-word chunks (worse on both) and putting the best chunk last in the prompt (fewer correct answers and citations).
+
+Speed on a laptop CPU: search and re-ranking 0.35 to 0.45 s, the first words of the answer after about 0.6 s, a full answer in 1 to 1.5 s. Indexing a 4-page paper takes about 8 s (most of it loading the models).
 
 ## RAG concepts in this project
 
 | Concept | Where it is implemented |
 |---|---|
-| LLM basics (tokens, context window, hallucination) | `src/generator.py`: `generate_answer()` returns prompt and answer token counts, uses temperature 0.1; `src/prompt_builder.py`: `SYSTEM_PROMPT` and `NOT_FOUND_MESSAGE` guard against hallucination; `tests/test_generator.py` reads the context window (`num_ctx`) from Ollama and shows how much of it each prompt uses |
-| RAG pipeline flow | `src/ingest.py`: `run_ingestion()` (indexing side); `src/rag_pipeline.py`: `answer_question()` (question side) |
-| Document loading | `src/loader.py`: `load_pdfs()`, `load_pdf()`, `clean_text()` |
-| Chunking | `src/chunker.py`: `split_into_chunks()`, `chunk_pages()` |
+| LLM basics (tokens, context window, hallucination) | `src/generator.py`: `stream_answer()` and `generate_answer()` return prompt and answer token counts, use temperature 0.1 and a fixed seed; `src/prompt_builder.py`: `SYSTEM_PROMPT` and `NOT_FOUND_MESSAGE` guard against hallucination |
+| RAG pipeline flow | `src/ingest.py`: `run_ingestion()` (indexing side); `src/rag_pipeline.py`: `answer_question_stream()` (question side) |
+| Document loading | `src/loader.py`: `load_pdf()`, `read_page()`, `strip_edges()`, `drop_references()`, `table_to_text()`, `ocr_page()` |
+| Chunking | `src/chunker.py`: `split_sentences()`, `chunk_sentences()`, `chunk_table()`, `add_abbreviations()` |
 | Embeddings | `src/embedder.py`: `load_model()`, `embed_texts()`, `embed_chunks()` |
-| Similarity search | `src/vector_store.py`: `normalize_vectors()`; `src/retriever.py`: `embed_query()` (cosine similarity as the inner product of normalized vectors) |
-| Vector database | `src/vector_store.py`: `build_index()` (FAISS `IndexFlatIP`), `save_store()`, `load_store()` |
-| Top-K retrieval | `src/retriever.py`: `retrieve(question, index, chunks, k)` |
-| Prompt construction | `src/prompt_builder.py`: `format_context()`, `build_messages()`, `get_sources()` |
+| Similarity search | `src/vector_store.py`: `normalize_vectors()`; `src/retriever.py`: `vector_scores()` (cosine similarity as the inner product of normalized vectors) |
+| Keyword search and hybrid search | `src/bm25.py`: `BM25`; `src/retriever.py`: `fuse()` (reciprocal rank fusion) |
+| Re-ranking | `src/reranker.py`: `rerank_scores()` |
+| Vector database | `src/vector_store.py`: `build_index()` (FAISS `IndexFlatIP`), `remove_paper()`, `save_store()`, `load_store()` |
+| Top-K retrieval | `src/retriever.py`: `retrieve(question, index, chunks, k, source, method, previous)` |
+| Prompt construction | `src/prompt_builder.py`: `format_context()`, `format_history()`, `build_messages()`, `get_sources()` |
+| Conversation memory | `src/chat_store.py`: `get_history()`; `src/rag_pipeline.py`: `find_chunks()` |
+| Evaluation | `evaluation/evaluate.py`: Hit@K, MRR, answer correctness, citation correctness |
 
 ## Design decisions
 
 - **pdfplumber with `x_tolerance=1.5` and `use_text_flow=True`**: the default settings glued words together (48% of the "words" in one paper were longer than 25 characters) and mixed the two columns line by line.
-- **Chunking page by page**: a chunk never spans two pages, so every chunk has one correct page number for the sources.
-- **100-word chunks with 20 words overlap**: the embedding model reads at most 256 tokens and silently cuts off the rest. With 150/30 words, 29 of 206 chunks were over the limit (largest 538 tokens). With 100/20, only 7 of 302 are over (largest 368 tokens): 6 reference-list chunks and 1 results table.
-- **Overlap between chunks**: a sentence cut at a chunk boundary still appears whole in the neighbouring chunk.
-- **Normalized vectors + `IndexFlatIP`**: the inner product of two length-1 vectors is their cosine similarity. "Flat" means exact search against every vector, which is fast enough for a few hundred chunks (about 6 to 15 ms per question including the question embedding).
-- **Same embedding model for chunks and questions, checked at startup**: `info.json` stores the model name and `check_model_matches()` refuses an index built with a different model.
-- **Temperature 0.1**: answers should be factual and repeatable, not creative.
-- **"Not found" rule in the system prompt**: gives the model an allowed way to say it does not know, instead of answering from its own memory.
-- **Reminder line after the question**: in testing, without it the model left out `[Source N]` citations in 2 of 3 answers. Small models follow the most recent instruction best.
-- **"Not found" detected only at the start of the answer**: the model sometimes gives a partial answer and then adds the not-found sentence. Checking only the start keeps the sources for those partial answers.
-- **Uploads checked for `.pdf` and the `%PDF` header, names cleaned with `secure_filename`**: only real PDFs are saved, and file names cannot contain paths or unsafe characters.
-- **Building the index is a separate step**: uploading several papers does not trigger several slow rebuilds.
+- **Rotated characters are dropped, short lines that repeat at the top or bottom of most pages are removed**: arXiv stamps came out one letter per line, and running headers matched questions about the paper's title on every page. Only lines of up to 15 words count, so repeated body text is never removed.
+- **The reference list is removed** (from a "References" heading in the second half of the paper until an appendix): reference titles match many questions but never answer them.
+- **Tables are written row by row with the column names** ("Sky Hop: Playable (GA) 91.5, Novelty 0.37") and get their own chunk with the caption: in plain extracted text the numbers lose their columns.
+- **Chunking page by page, by whole sentences**: a chunk never spans two pages (one correct page number per chunk) and never cuts a sentence. Neighbouring chunks share their last sentence (at least one, even when it is longer than the 20-word overlap), so a chunk keeps what "it" refers to.
+- **100-word chunks**: the embedding model reads at most 256 tokens. 150 and 200 words were tested (see "Evaluation") and were not better overall.
+- **Hybrid search, then a cross-encoder**: vector search finds meaning, BM25 finds exact numbers and names; merging by rank (not by score) needs no tuning. The cross-encoder is too slow for every chunk but very good at choosing among 20.
+- **Follow-ups search twice**: once with the question and once with "previous question + question"; every chunk keeps its better score. A follow-up gets its context, and a new topic is still found on its own.
+- **Earlier turns go inside the user message**, clearly labelled, not as separate chat messages: given chat turns, llama3.2:3b answered "not found" for a new topic.
+- **Temperature 0.1 and a fixed seed**: answers are factual and repeatable, so the evaluation gives the same numbers on every run.
+- **Build index is incremental**: `info.json` stores each paper's size and change time. Unchanged papers keep their vectors; an index made with other settings (`PIPELINE_VERSION`) is rebuilt.
+- **Normalized vectors + `IndexFlatIP`**: the inner product of two length-1 vectors is their cosine similarity. "Flat" means exact search, fast enough for thousands of chunks.
+- **Streaming as NDJSON** (one JSON object per line): the page shows each word as it arrives. If the browser stops reading (Stop button), the server saves the part that was written.
+- **"Not found" rule in the system prompt, detected only at the start of the answer**: the model has an allowed way to say it does not know, and partial answers keep their sources.
+- **Uploads checked for `.pdf` and the `%PDF` header, names cleaned with `secure_filename`**: only real PDFs are saved, and file names cannot contain paths.
 - **Dashboard inserts all server text with `textContent`**: text from PDFs can never run as code in the page.
-
-## What I tested and observed
-
-Test set: 3 research papers (27 pages, 302 chunks). Everything ran on a CPU (no GPU).
-
-**Retrieval** (K = 3, cosine similarity scores):
-
-| Question | Top result | Top 3 scores | Right paper first? |
-|---|---|---|---|
-| What reward function does the cautious curiosity agent use? | Cautious Curiosity, page 3 | 0.86, 0.80, 0.77 | Yes (all 3 from it) |
-| How can reinforcement learning be used for load testing of games? | Load testing paper, page 2 | 0.80, 0.76, 0.74 | Yes (all 3 from it) |
-| What kinds of bugs can the World of Bugs platform detect? | World of Bugs, page 1 | 0.64, 0.63, 0.62 | Yes (all 3 from it) |
-| How does an AI agent behave more like a human player? (paraphrase) | Cautious Curiosity, page 1 | 0.73, 0.71, 0.67 | Yes (all 3 from it) |
-| What is the capital of France? (off-topic) | page header / watermark / chart labels | 0.21, 0.15, 0.13 | Nothing relevant, as expected |
-
-- Real questions scored 0.62 to 0.86. The off-topic question scored 0.21 or lower, and its "matches" were noise.
-- Retrieval (question embedding + FAISS search) took about 6 to 15 ms per question.
-- With K = 5 instead of 3, the two extra chunks scored a little lower (0.72 and 0.71) and were still from the right paper.
-- Embedding demo: "An agent learns to play a video game using rewards." vs "Reinforcement learning trains a game-playing agent." scored 0.81, vs "Automated tools can find bugs in 3D games." 0.33, vs "How to bake a chocolate cake at home." -0.02.
-
-**Generation** (llama3.2:3b, K = 3):
-
-- Prompts used about 630 to 680 tokens, about 16% of the 4096-token context window Ollama uses for this model.
-- The first answer after loading the model took about 6 to 8 seconds; later answers took about 1.3 to 2.2 seconds.
-- The off-topic question was answered with exactly "I could not find this in the uploaded papers." and no sources. The model did not answer "Paris".
-- For the reward function question, the retrieved chunks stop right before the exact formula. The model did not invent a formula; it said the exact details are not in the context.
-- No answer contained facts that were missing from the retrieved chunks, but citations were not always correct (see the limitations).
-
-**Index size**: `faiss.index` 453 KB and `chunks.json` 228 KB for 302 chunks. Embedding all 302 chunks took about 8 seconds on the CPU.
 
 ## Known limitations
 
-- **Citations from a 3B model are not always right.** It sometimes cites the wrong source number (for example `[Source 1]` for a fact from Source 3), and it once described related work (Devlin et al. 2016, mentioned inside a paper) as if it were the paper's own method. Always check the expanded chunks.
-- **No memory between questions.** A chat looks like ChatGPT, but each question is answered on its own from the papers. A follow-up like "explain that more" does not know the previous answer, so ask full questions.
-- **No OCR.** Scanned (image-only) PDFs have no text, so they cannot be searched. The loader prints a warning for them.
-- **Noisy text from PDF layout.** Tables, formulas, reference lists, repeated page headers, publisher cover pages and rotated watermarks come out as noisy text (for example `a r X i v : 2 2 0 6 ...`). Repeated headers that contain the paper title can also raise the score of unrelated chunks from that paper.
-- **Some chunks are cut at the token limit.** 7 of 302 chunks are longer than the 256 tokens the embedding model reads, so their ends are ignored during search (6 reference-list chunks and 1 results table).
-- **Neighbouring chunks can both be retrieved.** Because of the 20-word overlap, two results can share part of their text.
+- **A 3B model still makes reading mistakes.** In the evaluation it sometimes missed one of two facts in a two-part question, or chose the wrong one of the 3 chunks even when the right chunk was there. Always check the sources.
+- **Tables without lines** are read as plain text, so their numbers can lose their columns. Tables with lines around the cells are written row by row.
+- **OCR quality depends on the scan.** Clean, printed pages work well; handwriting and very small text do not.
 - **Local, single-user app.** It uses Flask's development server on localhost (127.0.0.1 and ::1), with no login. It is not meant to be put on the internet.
 - **Upload limit of 25 MB per request** (all files in one upload together).
 - **File names change on upload.** Spaces and special characters become underscores (`secure_filename`).
 
-## Possible improvements
-
-Ideas only, not built:
-
-- Hybrid search: combine FAISS with keyword search (BM25) for exact terms like names and numbers
-- Re-ranking: re-score the top results with a cross-encoder before sending them to the LLM
-- A small retrieval evaluation set (questions with the correct page) to compare chunk sizes and K
-- OCR for scanned PDFs
-- Remove repeated page headers and reference lists before chunking
-
 ## Running the tests
 
-The tests are scripts that print their results. Run them from the project folder with the venv active:
+The tests use pytest. Install the development tools once, then run them from the project folder with the venv active:
 
 ```
-python -m tests.verify_setup          # libraries installed, Ollama reachable
-python -m tests.test_loader           # PDF loading and text quality
-python -m tests.test_chunker          # chunk counts, sizes and overlap
-python -m tests.test_embedder         # embeddings, token lengths, similarity demo
-python -m tests.test_vector_store     # saved index, normalization, self-search check
-python -m tests.test_retriever        # top-K results for test questions
-python -m tests.test_prompt_builder   # exact messages sent to the LLM
-python -m tests.test_generator        # answers from llama3.2:3b (needs Ollama)
-python -m tests.test_app              # all Flask routes (needs Ollama)
-python -m tests.test_chat_store       # saving and listing chats (no LLM needed)
-python -m tests.test_suggestions      # cleaning the suggested questions (no LLM needed)
-python -m tests.test_dashboard        # the 4 pages, static files, no long dashes or emoji
+pip install -r requirements-dev.txt
+python -m pytest                              # every test (1 to 2 minutes)
+python -m pytest tests/test_chunker.py        # one file
+python -m pytest -m "not browser and not ollama"   # skip the browser and real-LLM tests
 ```
+
+| File | What it tests |
+|---|---|
+| `test_loader.py` | headers, page numbers, stamps and references removed; tables and captions; ligatures; OCR of a scanned page |
+| `test_chunker.py` | sentences, overlap, long sentences, tables, section headings, abbreviations |
+| `test_bm25.py`, `test_embedder.py`, `test_vector_store.py` | keyword scores; vectors; FAISS search, removing a paper, saving and loading |
+| `test_ingest.py` | Build index embeds only new or changed papers, removes deleted ones, rebuilds an outdated index |
+| `test_retriever.py` | every search method, the paper filter, re-ranking, follow-up questions |
+| `test_prompt_builder.py`, `test_generator.py`, `test_rag_pipeline.py` | the exact prompt, Ollama errors, streaming, "not found" |
+| `test_chat_store.py`, `test_suggestions.py` | saving, listing, renaming and deleting chats; suggested questions |
+| `test_app.py` | every Flask route: upload, Build index, streaming answers, Stop, follow-ups, deleting papers, errors |
+| `test_dashboard.py` | the pages and every file they load, offline, no inline scripts, no long dashes or emoji |
+| `test_ui.py` | the Assistant in a real browser: asking, streaming, Stop, Build index, deleting, keyboard, small screens |
+| `test_evaluation.py` | the evaluation set is valid and retrieval stays above Hit@3 95% and MRR 0.9 |
 
 Notes:
 
-- Most tests need papers in `data/` and a built index (`python scripts/build_index.py`). Without your own papers, `python -m tests.make_sample_pdfs` puts 3 small sample PDFs in `data/` (this is what CI does).
-- `test_app` works only in temporary folders with its own sample PDFs, so it never changes your `data/`, `index/` or `chats/`.
-- Stop the running app before running the tests if you want port 5000 free; the tests themselves do not use the port.
-- A test script exits with an error code when one of its checks fails, so CI can detect it. LLM answers are printed but not checked word by word, because their wording can change between runs.
+- Every test runs in temporary folders, so it never changes your `data/`, `index/` or `chats/`.
+- Most tests use a fake LLM, so they are fast and give the same result every time. Tests marked `ollama` use the real `llama3.2:3b` and are skipped when Ollama is not running.
+- Tests marked `browser` use the Edge or Chrome that is already installed (Playwright does not download a browser) and are skipped when neither is there.
 
-Lint and type check (install the tools once with `pip install -r requirements-dev.txt`):
+Coverage, lint and type check:
 
 ```
+python -m coverage run -m pytest
+python -m coverage report        # about 97% of src/ and app.py
 ruff check .
-mypy app.py src tests scripts
+mypy app.py src scripts evaluation tests
 ```
+
+mypy is strict for the app code: every function in `app.py`, `src/`, `scripts/` and `evaluation/` must have type hints (`disallow_untyped_defs`). The dictionary shapes are defined once in `src/schema.py`.
 
 ## Continuous integration
 
@@ -309,30 +356,30 @@ Every push and pull request runs the workflow in `.github/workflows/ci.yml` on G
 | Check | What it does |
 |---|---|
 | Lint (ruff) | Code style, unused names and import order |
-| Type check (mypy) | Static type check of all Python files |
+| Type check (mypy) | Strict static type check of all Python files |
 | One-click setup (Windows, macOS, Linux) | Runs `setup.bat` or `setup.sh` on a clean machine, then checks that the venv works, that Python cache files go to `.cache/pycache/` and that no `__pycache__` folder is created |
-| Tests (Windows, macOS, Linux) | Installs Ollama and `llama3.2:3b`, creates 3 synthetic sample PDFs (`tests/make_sample_pdfs.py`), builds the index and runs every test script |
-
-The real research papers are never uploaded to GitHub, which is why CI uses generated sample PDFs.
+| Tests (Windows, macOS, Linux) | Installs Ollama and `llama3.2:3b`, runs every pytest test (including the browser tests and the real-LLM tests) and fails if coverage drops below 90% |
+| Answer quality | Runs the evaluation set with the real model and fails if Hit@3 drops below 95% or fewer than 90% of the answers are correct |
 
 ## Generated files
-
-Files that are created again and again stay out of the project folders:
 
 Everything that is generated again and again goes into one folder, `.cache/`:
 
 ```
 .cache/
-|-- pycache/   Python cache files for app.py, src/, tests/ and scripts/ (same layout as the project)
-|-- ruff/      ruff cache
-`-- mypy/      mypy cache
+|-- pycache/    Python cache files for app.py, src/, tests/, scripts/ and evaluation/ (same layout as the project)
+|-- ruff/       ruff cache
+|-- mypy/       mypy cache
+|-- pytest/     pytest cache
+|-- coverage/   coverage data and the HTML report
+`-- eval/       the index built by the evaluation
 ```
 
-- Python normally creates a `__pycache__` folder next to every `.py` file. `scripts/configure_venv.py` (run by the setup scripts) installs a small helper into the venv that writes this project's cache files to `.cache/pycache/` instead. It works for every run with the venv's Python: the app, the tests and your editor. Libraries keep their own caches inside `venv/`, so startup is just as fast.
-- ruff and mypy write their caches to `.cache/` (set in `pyproject.toml`).
+- Python normally creates a `__pycache__` folder next to every `.py` file. `scripts/configure_venv.py` (run by the setup scripts) installs a small helper into the venv that writes this project's cache files to `.cache/pycache/` instead, including the files pytest writes for the tests. Libraries keep their own caches inside `venv/`, so startup is just as fast.
+- ruff, mypy, pytest and coverage write their caches to `.cache/` (set in `pyproject.toml`).
 - CI fails if a `__pycache__` folder ever appears outside `venv/`.
 - You can delete `.cache/` at any time; it is created again when needed.
-- `index/` holds the generated search index, and `data/` holds your PDFs. All of these are ignored by git.
+- `index/` holds the generated search index, `data/` your PDFs and `chats/` your chats. All of these are ignored by git.
 
 ## Screenshots
 

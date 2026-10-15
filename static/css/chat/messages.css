@@ -1,0 +1,391 @@
+/* Messages: questions, answers, citations, sources and the thinking dots */
+
+/* ---------- Messages ---------- */
+
+.thread {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 28px 22px 40px;
+}
+
+.thread:empty {
+    display: none;
+}
+
+.msg {
+    display: flex;
+    gap: 14px;
+    animation: messageIn 0.45s var(--ease) both;
+}
+
+.msg-user {
+    justify-content: flex-end;
+}
+
+.bubble {
+    max-width: 78%;
+    padding: 10px 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: 20px 20px 6px 20px;
+    background: var(--surface-3);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--cyan-line);
+    border-radius: 10px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+}
+
+.msg-body {
+    flex: 1;
+    min-width: 0;
+    padding-top: 4px;
+}
+
+/* Answer text */
+.answer {
+    word-break: break-word;
+}
+
+.answer p {
+    margin: 0 0 12px;
+}
+
+.answer ul,
+.answer ol {
+    margin: 0 0 12px;
+    padding-left: 22px;
+}
+
+.answer li {
+    margin-bottom: 4px;
+}
+
+.answer li::marker {
+    color: var(--cyan);
+}
+
+.answer strong {
+    color: #fff;
+}
+
+.answer > :last-child {
+    margin-bottom: 0;
+}
+
+/* Typing effect: text appears letter by letter with a blinking cursor */
+.answer-typing,
+.answer-plain {
+    white-space: pre-wrap;
+}
+
+/* Stopped before the model wrote anything */
+.answer-stopped {
+    margin: 0;
+    color: var(--text-faint);
+    font-size: 0.88rem;
+}
+
+.answer-typing::after {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 1.05em;
+    margin-left: 2px;
+    background: var(--cyan);
+    vertical-align: -3px;
+    animation: blink 0.9s steps(1) infinite;
+}
+
+/* [Source 1] in the answer becomes a small clickable number */
+.cite {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    margin: 0 2px;
+    padding: 0 6px;
+    border: 1px solid var(--cyan-line);
+    border-radius: 6px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    font: 700 0.72rem var(--font);
+    vertical-align: 2px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.cite:hover {
+    background: var(--cyan);
+    color: #031216;
+}
+
+/* "Not found" answer */
+.answer-notfound {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+}
+
+.answer-notfound .icon {
+    margin-top: 3px;
+    color: var(--warn);
+}
+
+.answer-notfound p {
+    margin: 0;
+}
+
+.answer-notfound small {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-faint);
+}
+
+/* Error message */
+.answer-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    padding: 12px 14px;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: var(--radius);
+    background: rgba(248, 113, 113, 0.08);
+    color: #fecaca;
+}
+
+.answer-error .icon {
+    color: var(--bad);
+}
+
+.answer-error span {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Copy button and numbers under an answer */
+.msg-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin-top: 10px;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    animation: fadeIn 0.4s both;
+}
+
+.msg-meta .icon-btn {
+    width: 30px;
+    height: 30px;
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+}
+
+/* ---------- Sources ---------- */
+
+.sources {
+    margin-top: 14px;
+    animation: fadeUp 0.45s var(--ease) both;
+}
+
+.sources-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-bottom: 8px;
+}
+
+.sources-head strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.sources-head span {
+    color: var(--text-faint);
+    font-size: 0.78rem;
+}
+
+.source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.source-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    transition: border-color 0.25s, box-shadow 0.4s;
+}
+
+.source-card[open],
+.source-card:hover {
+    border-color: var(--cyan-line);
+}
+
+.source-card.is-flash {
+    box-shadow: 0 0 0 2px var(--cyan), 0 0 24px rgba(34, 211, 238, 0.35);
+}
+
+.source-card summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.source-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.source-num {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.source-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.86rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.source-page {
+    flex: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.score {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+}
+
+.score-bar {
+    width: 46px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    overflow: hidden;
+}
+
+.score-bar i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan-deep), var(--cyan));
+    transform-origin: left;
+    animation: grow 0.8s var(--ease) both;
+}
+
+.source-card .icon-chevron {
+    flex: none;
+    color: var(--text-faint);
+    transition: transform 0.25s var(--ease);
+}
+
+.source-card[open] .icon-chevron {
+    transform: rotate(180deg);
+}
+
+.chunk-text {
+    margin: 0;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    animation: fadeIn 0.3s;
+}
+
+/* The section the chunk comes from, above its text */
+.chunk-section {
+    margin: 0;
+    padding: 10px 14px 0;
+    border-top: 1px solid var(--border);
+    color: var(--cyan);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.chunk-section + .chunk-text {
+    padding-top: 6px;
+    border-top: 0;
+}
+
+/* ---------- Thinking indicator ---------- */
+
+.thinking {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 32px;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.dots {
+    display: flex;
+    gap: 5px;
+}
+
+.dots i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--cyan);
+    animation: bounce 1s infinite;
+}
+
+.dots i:nth-child(2) { animation-delay: 0.15s; }
+.dots i:nth-child(3) { animation-delay: 0.3s; }
+
+.thinking-text {
+    animation: fadeIn 0.4s;
+}

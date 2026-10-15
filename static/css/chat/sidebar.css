@@ -1,0 +1,101 @@
+/* Sidebar items, the Upload PDF / Build index buttons and the build progress line */
+
+.side-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.side-item:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.side-item.is-active {
+    border-color: var(--cyan-line);
+    background: var(--cyan-soft);
+    color: var(--text);
+}
+
+.side-item .icon {
+    color: var(--cyan);
+}
+
+.side-item-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.side-item-title {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.side-item-sub {
+    display: block;
+    overflow: hidden;
+    color: var(--text-faint);
+    font-size: 0.74rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.side-empty {
+    padding: 6px 10px;
+    color: var(--text-faint);
+    font-size: 0.84rem;
+}
+
+.side-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.side-actions .btn {
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+/* Greyed out, for example Build index when every paper is already indexed */
+.side-actions .btn:disabled {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text-faint);
+    opacity: 0.7;
+}
+
+.build-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 9px 12px;
+    border: 1px solid var(--cyan-line);
+    border-radius: 10px;
+    background: var(--cyan-soft);
+    color: var(--cyan);
+    font-size: 0.82rem;
+    animation: fadeIn 0.3s;
+}
+
+.build-progress[hidden] {
+    display: none;
+}
+
+.sidebar-backdrop {
+    display: none;
+}

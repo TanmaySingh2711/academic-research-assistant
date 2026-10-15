@@ -22,7 +22,7 @@ from app import app  # noqa: E402
 PORT = 5000
 
 
-def main():
+def main() -> None:
     servers = [make_server("127.0.0.1", PORT, app, threaded=True)]
     try:
         servers.append(make_server("::1", PORT, app, threaded=True))

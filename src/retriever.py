@@ -1,53 +1,124 @@
-"""Retrieval: turn a question into a vector and find the top-k most similar chunks in FAISS."""
+"""Retrieval: find the chunks that best answer a question.
 
+Methods (the evaluation in evaluation/evaluate.py compares them):
+  "vector"  FAISS: the question vector against every chunk vector (cosine similarity)
+  "bm25"    keyword search (src/bm25.py)
+  "hybrid"  both rankings merged with reciprocal rank fusion
+  "rerank"  hybrid, then the best CANDIDATES chunks are re-scored by a cross-encoder (src/reranker.py)
+"""
+
+from typing import Any
+
+from src.bm25 import BM25
 from src.embedder import MODEL_NAME, embed_texts
+from src.reranker import rerank_scores
+from src.schema import Chunk, SearchResult
 from src.vector_store import normalize_vectors
 
+DEFAULT_METHOD = "rerank"
+METHODS = ("vector", "bm25", "hybrid", "rerank")
+CANDIDATES = 20  # chunks the cross-encoder re-scores
+RRF_K = 60  # standard constant of reciprocal rank fusion
 
-def embed_query(question):
+# The BM25 index is built once per chunk list and reused for every question
+_bm25_cache: dict[str, Any] = {"chunks": None, "index": None}
+
+
+def embed_query(question: str) -> Any:
     """Embed the question with the SAME model as the chunks and normalize it. Shape: (1, 384)."""
     vector = embed_texts([question], show_progress=False)
     # Normalized query . normalized chunk = cosine similarity (same as the index)
     return normalize_vectors(vector)
 
 
-def retrieve(question, index, chunks, k=3, source=None):
-    """Return the k chunks most similar to the question, best first.
+def bm25_for(chunks: list[Chunk]) -> BM25:
+    if _bm25_cache["chunks"] is not chunks:
+        _bm25_cache["index"] = BM25(chunks)
+        _bm25_cache["chunks"] = chunks
+    return _bm25_cache["index"]
 
-    If source is a filename, only chunks from that paper are returned.
+
+def vector_scores(question: str, index: Any, rows: list[int]) -> dict[int, float]:
+    """Cosine similarity of the question with each chunk row in `rows`."""
+    # Exact search over every vector takes only milliseconds for a few thousand chunks
+    scores, ids = index.search(embed_query(question), index.ntotal)
+    wanted = set(rows)
+    return {int(row): float(score) for score, row in zip(scores[0], ids[0]) if row in wanted}
+
+
+def ranking(scores: dict[int, float]) -> list[int]:
+    """Rows sorted from best to worst score."""
+    return sorted(scores, key=lambda row: scores[row], reverse=True)
+
+
+def fuse(*rankings: list[int]) -> dict[int, float]:
+    """Reciprocal rank fusion: every ranking gives a row 1 / (60 + its rank).
+
+    Only the positions are used, not the raw scores, so a cosine similarity (0 to 1) and a
+    BM25 score (0 to about 30) can be combined without rescaling them."""
+    fused: dict[int, float] = {}
+    for order in rankings:
+        for rank, row in enumerate(order, start=1):
+            fused[row] = fused.get(row, 0.0) + 1 / (RRF_K + rank)
+    return fused
+
+
+def retrieve(question: str, index: Any, chunks: list[Chunk], k: int = 3, source: str | None = None,
+             method: str = DEFAULT_METHOD, previous: str | None = None) -> list[SearchResult]:
+    """Return the k chunks that best answer the question, best first.
+
+    If source is a filename, only chunks from that paper are searched.
+    previous: the previous question of the chat. A follow-up like "And its recall?" does not say
+    what "its" is, so the search also runs with "previous question + question", and every chunk
+    keeps its better result. A question about a new topic still finds its chunks on its own.
     """
     if not question or not question.strip():
         raise ValueError("Question is empty. Please type a question.")
     if k < 1:
         raise ValueError(f"k must be at least 1 (got {k})")
-    k = min(k, len(chunks))  # cannot return more chunks than we have
+    if method not in METHODS:
+        raise ValueError(f"method must be one of {METHODS} (got {method!r})")
 
-    query = embed_query(question)
-    # For one paper, rank ALL chunks and keep that paper's best k.
-    # Exact search over a few hundred chunks takes only milliseconds.
-    search_k = index.ntotal if source else k
-    # FAISS returns two (1, search_k) arrays: similarity scores and row numbers, best first
-    scores, ids = index.search(query, search_k)
+    rows = [row for row, chunk in enumerate(chunks) if source is None or chunk["source"] == source]
+    if not rows:
+        return []
 
-    results = []
-    for score, row in zip(scores[0], ids[0]):
-        chunk = chunks[row]  # row i in the index = chunks[i]
-        if source and chunk["source"] != source:
-            continue
+    def keyword_scores(query: str) -> dict[int, float]:
+        return dict(zip(rows, bm25_for(chunks).score(query, rows)))
+
+    queries = [question] if not previous else [question, f"{previous} {question}"]
+    rankings = []  # one ranking per query and search method, merged below
+    for query in queries:
+        if method in ("vector", "hybrid", "rerank"):
+            rankings.append(ranking(vector_scores(query, index, rows)))
+        if method in ("bm25", "hybrid", "rerank"):
+            rankings.append(ranking(keyword_scores(query)))
+    scores = fuse(*rankings)
+
+    if method == "rerank":
+        candidates = ranking(scores)[:CANDIDATES]
+        texts = [chunks[row]["text"] for row in candidates]
+        per_query = [rerank_scores(query, texts) for query in queries]
+        scores = {row: max(found[i] for found in per_query) for i, row in enumerate(candidates)}
+    elif len(rankings) == 1:
+        # One plain ranking: show its own score (cosine similarity or BM25), not the fusion score
+        scores = vector_scores(question, index, rows) if method == "vector" else keyword_scores(question)
+
+    results: list[SearchResult] = []
+    for row in ranking(scores)[:k]:
+        chunk = chunks[row]
         results.append({
             "rank": len(results) + 1,
-            "score": round(float(score), 4),
+            "score": round(scores[row], 4),
             "chunk_id": chunk["chunk_id"],
             "source": chunk["source"],
             "page": chunk["page"],
             "text": chunk["text"],
         })
-        if len(results) == k:
-            break
     return results
 
 
-def check_model_matches(info):
+def check_model_matches(info: dict[str, Any]) -> None:
     """Raise an error if the index was built with a different model than the one embedder.py loads.
 
     Compares names only, so it is instant and does not need to load the model.

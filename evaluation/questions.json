@@ -1,0 +1,925 @@
+[
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How many games was the level generator tested on, and which ones?",
+    "type": "fact",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "three",
+        "3"
+      ],
+      [
+        "Tunnel Run"
+      ],
+      [
+        "Sky Hop"
+      ],
+      [
+        "Crate Quest"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What percentage of the generated levels were playable on average?",
+    "type": "number",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "92.5"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How big is the grid of a level?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "16"
+      ],
+      [
+        "120"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How many hand-made segments are in the library?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "48"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What is the mutation probability?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "0.05"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How is the fitness of a level calculated?",
+    "type": "fact",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "0.6"
+      ],
+      [
+        "0.4"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How do the authors measure how different a level is from earlier ones?",
+    "type": "paraphrase",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "Hamming"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What population size and how many generations were used?",
+    "type": "number",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "64"
+      ],
+      [
+        "200"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What percentage of Sky Hop levels made by the genetic algorithm were playable?",
+    "type": "table",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "91.5"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "Which game had the most novel levels?",
+    "type": "fact",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "Crate Quest"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How fun were the generated levels compared to the levels made by a designer?",
+    "type": "paraphrase",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "5.3"
+      ],
+      [
+        "5.6"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How many players took part in the user study?",
+    "type": "number",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "24"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What programming language was the level generator written in?",
+    "type": "not_found"
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What is the churn rate of Puzzle Garden players?",
+    "type": "not_found"
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "Why was it hard?",
+    "type": "follow_up",
+    "history": [
+      "Which game was the hardest for the generator?"
+    ],
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "spring",
+        "timing"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "What do the authors want to replace it with?",
+    "type": "follow_up",
+    "history": [
+      "What does the A* agent tell about a level?"
+    ],
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "player model"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How many unique crashes did CrashHunter find?",
+    "type": "number",
+    "pages": [
+      1,
+      4
+    ],
+    "keywords": [
+      [
+        "37"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How many crashes did the Monkey tool find?",
+    "type": "number",
+    "pages": [
+      1,
+      4
+    ],
+    "keywords": [
+      [
+        "9"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "Which Android API level does the emulator use?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "33"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How many actions can the agent choose from?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "69"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "What reward does the agent get when the game crashes?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "100"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How does the agent decide whether two screens are the same?",
+    "type": "fact",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "perceptual hash"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "What is Random Network Distillation used for?",
+    "type": "fact",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "intrinsic",
+        "curiosity",
+        "unfamiliar"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "What learning rate was used to train the Q-network?",
+    "type": "number",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "0.0001"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How many screens did the DQN without curiosity cover?",
+    "type": "table",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "301"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How many of the crashes were null pointer exceptions?",
+    "type": "number",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "15"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "What share of the crashes could be reproduced by replaying the actions?",
+    "type": "number",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "89",
+        "33"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "Why can some games not be tested with this approach?",
+    "type": "paraphrase",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "text",
+        "login"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "Which iOS version was used in the tests?",
+    "type": "not_found"
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "How many frames are in the glitch detection data set?",
+    "type": "not_found"
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "And what happens when a step does not change the screen?",
+    "type": "follow_up",
+    "history": [
+      "What reward does the agent get for reaching a new screen?"
+    ],
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "-1",
+        "minus 1",
+        "minus one",
+        "penalty",
+        "costs"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "And how many screens did it cover?",
+    "type": "follow_up",
+    "history": [
+      "How many crashes did the version without curiosity find?"
+    ],
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "301"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How many players are in the data set?",
+    "type": "number",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "85,000",
+        "85000",
+        "85 000"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "What AUC did LightGBM reach?",
+    "type": "number",
+    "pages": [
+      1,
+      4
+    ],
+    "keywords": [
+      [
+        "0.87"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How is churn defined in this paper?",
+    "type": "fact",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "15"
+      ],
+      [
+        "28"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "What is the churn rate in the data set?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "41"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How many features are used, and in which groups?",
+    "type": "fact",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "23"
+      ],
+      [
+        "engagement"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How many trees does the LightGBM model have?",
+    "type": "number",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "400"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How were the models validated?",
+    "type": "paraphrase",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "5-fold",
+        "five-fold",
+        "cross validation",
+        "cross-validation"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How are missing values handled?",
+    "type": "fact",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "zero",
+        "0"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "What F1 score did the random forest get?",
+    "type": "table",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "0.71"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "Which features matter most according to SHAP?",
+    "type": "fact",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "last session"
+      ],
+      [
+        "level 12"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How much did retention improve after level 12 was made easier?",
+    "type": "number",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "3.8"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "Was personal data removed from the telemetry?",
+    "type": "paraphrase",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "anonymi",
+        "no names"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How much revenue did Puzzle Garden make?",
+    "type": "not_found"
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "Which GPU was used to train the model?",
+    "type": "not_found"
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "What precision at 10 percent did it reach?",
+    "type": "follow_up",
+    "history": [
+      "Which model was the best?"
+    ],
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "0.81"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "What did the developers do about it?",
+    "type": "follow_up",
+    "history": [
+      "Which level had a difficulty spike?"
+    ],
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "easier",
+        "A/B"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How many frames are in the data set?",
+    "type": "number",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "24,000",
+        "24000",
+        "24 000"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "What F1 score does the autoencoder reach?",
+    "type": "number",
+    "pages": [
+      1
+    ],
+    "keywords": [
+      [
+        "0.81"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "Which glitch types were injected?",
+    "type": "fact",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "missing texture"
+      ],
+      [
+        "z-fighting"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "What does a missing texture look like?",
+    "type": "fact",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "checkerboard"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How many normal frames were recorded for training?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "20,000",
+        "20000",
+        "20 000"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How many filters do the encoder layers have?",
+    "type": "number",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "32"
+      ],
+      [
+        "256"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How long did training take, and on which graphics card?",
+    "type": "fact",
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "3 hours",
+        "three hours"
+      ],
+      [
+        "3060"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "What threshold was used for the reconstruction error?",
+    "type": "number",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "0.035"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "What recall did the method reach for floating objects?",
+    "type": "table",
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "0.49"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "Why are floating objects hard to detect?",
+    "type": "paraphrase",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "pixels"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How does a supervised classifier compare with the autoencoder?",
+    "type": "paraphrase",
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "0.89"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "On how many tracks did the bot drive?",
+    "type": "number",
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "6",
+        "six"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "What frame rate does Neon Drift run at?",
+    "type": "not_found"
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How many crashes did CrashHunter find?",
+    "type": "not_found"
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "And its recall?",
+    "type": "follow_up",
+    "history": [
+      "What is the precision for wrong lighting?"
+    ],
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "0.86"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "How do the authors plan to catch it?",
+    "type": "follow_up",
+    "history": [
+      "Which glitch is a problem over time?"
+    ],
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "temporal",
+        "several frames"
+      ]
+    ]
+  },
+  {
+    "paper": "evo_level_generation.pdf",
+    "question": "How many players took part in the user study?",
+    "type": "topic_change",
+    "history": [
+      "What is the mutation probability?"
+    ],
+    "pages": [
+      5
+    ],
+    "keywords": [
+      [
+        "24"
+      ]
+    ]
+  },
+  {
+    "paper": "crash_hunter_rl.pdf",
+    "question": "Which Android API level does the emulator use?",
+    "type": "topic_change",
+    "history": [
+      "How many of the crashes were null pointer exceptions?"
+    ],
+    "pages": [
+      2
+    ],
+    "keywords": [
+      [
+        "33"
+      ]
+    ]
+  },
+  {
+    "paper": "churn_prediction_telemetry.pdf",
+    "question": "How many trees does the LightGBM model have?",
+    "type": "topic_change",
+    "history": [
+      "What is the churn rate in the data set?"
+    ],
+    "pages": [
+      3
+    ],
+    "keywords": [
+      [
+        "400"
+      ]
+    ]
+  },
+  {
+    "paper": "glitch_autoencoder.pdf",
+    "question": "What threshold was used for the reconstruction error?",
+    "type": "topic_change",
+    "history": [
+      "What does a missing texture look like?"
+    ],
+    "pages": [
+      4
+    ],
+    "keywords": [
+      [
+        "0.035"
+      ]
+    ]
+  }
+]

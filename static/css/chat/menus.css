@@ -1,0 +1,121 @@
+/* The small "..." menus and the "Are you sure?" box */
+
+/* ---------- Menu next to a "..." button ---------- */
+
+.menu {
+    position: fixed;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    min-width: 170px;
+    padding: 5px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface-2);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    animation: menuIn 0.16s var(--ease);
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+    background: var(--surface-3);
+    outline: none;
+}
+
+.menu-item .icon {
+    color: var(--text-muted);
+}
+
+.menu-item.is-danger,
+.menu-item.is-danger .icon {
+    color: var(--bad);
+}
+
+.menu-item.is-danger:hover {
+    background: rgba(248, 113, 113, 0.12);
+}
+
+/* ---------- "Are you sure?" box ---------- */
+
+.dialog {
+    width: min(420px, calc(100vw - 32px));
+    padding: 24px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.dialog[open] {
+    animation: dialogIn 0.22s var(--ease);
+}
+
+.dialog::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+}
+
+.dialog h2 {
+    margin: 14px 0 6px;
+    font-size: 1.15rem;
+}
+
+.dialog p {
+    margin: 0 0 22px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    word-break: break-word;
+}
+
+.dialog-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 12px;
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--bad);
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-danger {
+    background: var(--bad);
+    color: #1f0505;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #fca5a5;
+    box-shadow: 0 0 22px rgba(248, 113, 113, 0.35);
+}
+
+@keyframes menuIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes dialogIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}

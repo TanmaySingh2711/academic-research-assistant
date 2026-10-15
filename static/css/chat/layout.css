@@ -1,0 +1,49 @@
+/* Assistant page: chat layout like ChatGPT / Claude / Gemini */
+
+/* Only the message list scrolls, the page itself does not */
+.page-chat {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.page-chat::before {
+    display: none;
+}
+
+.chat-layout {
+    display: grid;
+    grid-template-columns: 288px 1fr;
+    height: calc(100vh - var(--topbar-height));
+    height: calc(100dvh - var(--topbar-height));
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    min-height: 0;
+    padding: 16px 14px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-soft);
+    overflow-y: auto;
+}
+
+.side-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.side-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    color: var(--text-faint);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}

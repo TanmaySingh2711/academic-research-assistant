@@ -1,4 +1,4 @@
-"""Create 3 small sample PDFs for CI tests (standard library only, no PDF library needed).
+"""Create 3 small sample PDFs for the tests (standard library only, see tests/pdf_writer.py).
 
 The real research papers are not in the repo (they belong to their authors), so CI
 uses these synthetic documents instead. Their topics match the test questions.
@@ -7,8 +7,9 @@ Usage: python -m tests.make_sample_pdfs [output_dir]   (default: data)
 """
 
 import sys
-import textwrap
 from pathlib import Path
+
+from tests.pdf_writer import make_pdf
 
 NOTE = "Synthetic sample text generated for automated tests. It is not a real research paper."
 
@@ -68,47 +69,7 @@ DOCUMENTS = {
 }
 
 
-def escape(text):
-    """Escape the characters that have a special meaning inside a PDF string."""
-    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
-
-def make_pdf(path, pages):
-    """Write a minimal valid PDF with one text page per item in `pages`."""
-    # Objects: 1 catalog, 2 page list, 3 font, then a page object and a content object per page
-    page_ids = [4 + 2 * i for i in range(len(pages))]
-    objects = {
-        1: "<< /Type /Catalog /Pages 2 0 R >>",
-        2: f"<< /Type /Pages /Kids [{' '.join(f'{p} 0 R' for p in page_ids)}] /Count {len(pages)} >>",
-        3: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    }
-    for page_id, text in zip(page_ids, pages):
-        lines = textwrap.wrap(text, width=95, break_on_hyphens=False)
-        # 10 pt Helvetica, 14 pt line spacing, start near the top-left corner
-        stream = "BT /F1 10 Tf 14 TL 50 742 Td\n" + "".join(f"({escape(line)}) Tj T*\n" for line in lines) + "ET"
-        objects[page_id] = (
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {page_id + 1} 0 R >>"
-        )
-        objects[page_id + 1] = f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream"
-
-    # Write the objects and remember where each one starts (the xref table needs byte offsets)
-    out = bytearray(b"%PDF-1.4\n")
-    offsets = {}
-    for number in sorted(objects):
-        offsets[number] = len(out)
-        out += f"{number} 0 obj\n{objects[number]}\nendobj\n".encode("ascii")
-
-    xref_start = len(out)
-    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii")
-    for number in sorted(objects):
-        out += f"{offsets[number]:010d} 00000 n \n".encode("ascii")
-    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF\n".encode("ascii")
-
-    Path(path).write_bytes(out)
-
-
-def main():
+def main() -> None:
     output_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "data")
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, pages in DOCUMENTS.items():

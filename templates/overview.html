@@ -24,7 +24,7 @@
         </div>
     </section>
 
-    <!-- The two models the app uses -->
+    <!-- The three models the app uses -->
     <section class="stats" aria-label="Models">
         <div class="stat card" data-reveal>
             <span class="stat-label">{{ icon('cpu', 15) }} Language model</span>
@@ -35,6 +35,11 @@
             <span class="stat-label">{{ icon('database', 15) }} Embedding model</span>
             <strong class="stat-value">all-MiniLM-L6-v2</strong>
             <span class="stat-note">Turns every chunk into 384 numbers for search</span>
+        </div>
+        <div class="stat card" data-reveal style="--delay: 160">
+            <span class="stat-label">{{ icon('search', 15) }} Re-ranker</span>
+            <strong class="stat-value">ms-marco-MiniLM-L6-v2</strong>
+            <span class="stat-note">Reads the question with each found chunk and keeps the best ones</span>
         </div>
     </section>
 
@@ -67,7 +72,7 @@
             <article class="card card-hover feature" data-reveal style="--delay: 240">
                 <div class="icon-box">{{ icon('history', 20) }}</div>
                 <h3>Chats per paper</h3>
-                <p>Every chat is about one paper, and a paper can have many chats. They are saved and listed under each paper in the sidebar.</p>
+                <p>Every chat is about one paper, and a paper can have many chats. Follow-up questions can refer to earlier answers.</p>
             </article>
         </div>
     </section>
@@ -80,11 +85,11 @@
         </div>
         <ol class="pipeline" data-reveal>
             <li><div class="pipe-icon">{{ icon('file', 20) }}</div><strong>PDF</strong><span>Your paper</span></li>
-            <li><div class="pipe-icon">{{ icon('book', 20) }}</div><strong>Text by page</strong><span>pdfplumber</span></li>
-            <li><div class="pipe-icon">{{ icon('layers', 20) }}</div><strong>Chunks</strong><span>100 words each</span></li>
+            <li><div class="pipe-icon">{{ icon('book', 20) }}</div><strong>Text by page</strong><span>pdfplumber, OCR for scans</span></li>
+            <li><div class="pipe-icon">{{ icon('layers', 20) }}</div><strong>Chunks</strong><span>whole sentences, about 100 words</span></li>
             <li><div class="pipe-icon">{{ icon('cpu', 20) }}</div><strong>Embeddings</strong><span>384 numbers</span></li>
-            <li><div class="pipe-icon">{{ icon('search', 20) }}</div><strong>Search</strong><span>FAISS, top K</span></li>
-            <li><div class="pipe-icon">{{ icon('chat', 20) }}</div><strong>Answer</strong><span>llama3.2 + sources</span></li>
+            <li><div class="pipe-icon">{{ icon('search', 20) }}</div><strong>Search</strong><span>FAISS + keywords, re-ranked</span></li>
+            <li><div class="pipe-icon">{{ icon('chat', 20) }}</div><strong>Answer</strong><span>llama3.2, word by word, with sources</span></li>
         </ol>
     </section>
 </main>

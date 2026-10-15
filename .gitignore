@@ -5,7 +5,7 @@ venv/
 __pycache__/
 *.pyc
 
-# All tool caches (ruff, mypy) go to one folder
+# All caches and generated files of the tools (ruff, mypy, pytest, coverage, evaluation) go to one folder
 .cache/
 
 # Secrets / local env

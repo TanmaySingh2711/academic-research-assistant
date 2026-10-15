@@ -1,0 +1,206 @@
+/* Sidebar tree: All papers > paper > chats, with animated dropdowns */
+
+/* ---------- Paper tree: every paper with its chats in a dropdown ---------- */
+
+.paper-tree,
+.paper-chats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.paper-tree {
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.paper-node.animate-in {
+    animation: fadeUp 0.35s var(--ease) both;
+}
+
+.paper-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.paper-row:hover {
+    background: var(--surface-2);
+}
+
+/* The paper of the chat on screen */
+.paper-node.is-current > .paper-row {
+    border-color: var(--border-strong);
+    background: var(--surface);
+}
+
+.paper-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 4px 8px 6px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.paper-toggle .icon {
+    color: var(--cyan);
+}
+
+/* The paper itself is selected by clicking its name; it is highlighted while selected */
+.paper-pick {
+    padding-left: 2px;
+}
+
+/* The chevron points right when closed and down when open.
+   The ">" signs matter: they only look at this node's own row, not at papers inside it. */
+.paper-row .icon-chevron {
+    color: var(--text-faint);
+    transform: rotate(-90deg);
+    transition: transform 0.25s var(--ease);
+}
+
+.paper-node.is-open > .paper-row .icon-chevron {
+    transform: none;
+}
+
+/* Small button that only opens or closes the dropdown of a paper */
+.paper-chevron {
+    flex: none;
+    width: 24px;
+    height: 28px;
+    margin-left: 2px;
+    border-radius: 7px;
+}
+
+.paper-chevron:hover .icon-chevron {
+    color: var(--cyan);
+}
+
+.paper-add {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    margin-right: 4px;
+    border-radius: 8px;
+}
+
+/* Smooth open and close: the row height goes from 0fr to 1fr */
+.paper-chats {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s var(--ease);
+}
+
+.paper-node.is-open > .paper-chats {
+    grid-template-rows: 1fr;
+}
+
+.paper-chats-list {
+    min-height: 0;
+    margin-left: 17px;
+    padding-left: 8px;
+    overflow: hidden;
+    border-left: 1px solid var(--border-strong);
+    opacity: 0;
+    transition: opacity 0.25s, padding 0.3s var(--ease);
+}
+
+.paper-node.is-open > .paper-chats > .paper-chats-list {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    opacity: 1;
+}
+
+.chat-item {
+    padding: 6px 8px;
+}
+
+/* "All papers": the top dropdown that holds every paper */
+.paper-root > .paper-row .side-item-title {
+    font-weight: 700;
+}
+
+/* Papers sit only a little to the right of "All papers", so their names have room */
+.paper-root > .paper-chats > .paper-children {
+    gap: 4px;
+    margin-left: 10px;
+    padding-left: 3px;
+}
+
+/* A chat inside a paper: the chat button and its "..." menu button */
+.chat-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.chat-item {
+    flex: 1;
+    min-width: 0;
+}
+
+/* "+" (new chat) is always shown. The "..." buttons appear only when the row is hovered
+   or focused, so the rest of the time the paper or chat name has more room. */
+.more-btn {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+}
+
+.paper-row .more-btn,
+.chat-row .more-btn {
+    display: none;
+    animation: fadeIn 0.15s;
+}
+
+.paper-row:hover .more-btn,
+.paper-row:focus-within .more-btn,
+.chat-row:hover .more-btn,
+.chat-row:focus-within .more-btn,
+.more-btn[aria-expanded="true"] {
+    display: grid;
+}
+
+/* Touch screens have no hover, so the buttons are always shown there */
+@media (hover: none) {
+    .paper-row .more-btn,
+    .chat-row .more-btn {
+        display: grid;
+    }
+}
+
+/* Renaming a chat: the name becomes a text box */
+.chat-row.is-renaming .chat-item,
+.chat-row.is-renaming .more-btn {
+    display: none;
+}
+
+.rename-input {
+    flex: 1;
+    min-width: 0;
+    margin: 2px 0;
+    padding: 7px 10px;
+    border: 1px solid var(--cyan);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    outline: none;
+    box-shadow: 0 0 0 3px var(--cyan-soft);
+}

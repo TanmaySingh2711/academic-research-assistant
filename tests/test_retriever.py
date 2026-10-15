@@ -1,61 +1,76 @@
-"""Quick test for src/retriever.py: ask questions, show top-k chunks, and compare k=1/3/5."""
+"""src/retriever.py and src/reranker.py: finding the chunks that answer a question."""
 
-import time
+from pathlib import Path
 
-from src.embedder import load_model
-from src.retriever import check_model_matches, retrieve
+import pytest
+
+from src.reranker import load_reranker, rerank_scores
+from src.retriever import METHODS, check_model_matches, retrieve
 from src.vector_store import load_store
-
-index, chunks, info = load_store("index")
-check_model_matches(info)
-load_model()  # load the model first, so the timings below do not include loading
-print(f"Store loaded: {index.ntotal} vectors, model '{info['model_name']}' matches.\n")
-
-QUESTIONS = [
-    "What reward function does the cautious curiosity agent use?",
-    "How can reinforcement learning be used for load testing of games?",
-    "What kinds of bugs can the World of Bugs platform detect?",
-    "How does an AI agent behave more like a human player?",
-    "What is the capital of France?",
-]
+from tests.conftest import OTHER, PAPER
 
 
-def short(name, length=25):
-    """Shorten a filename for printing."""
-    return name if len(name) <= length else name[:length] + "..."
+@pytest.fixture(scope="module")
+def store(sample_index: tuple[Path, Path]) -> tuple:
+    return load_store(sample_index[1])
 
 
-for number, question in enumerate(QUESTIONS, start=1):
-    start = time.perf_counter()
-    results = retrieve(question, index, chunks, k=3)
-    elapsed_ms = (time.perf_counter() - start) * 1000
+@pytest.mark.parametrize("method", METHODS)
+def test_every_method_finds_the_answer(store: tuple, method: str) -> None:
+    index, chunks, _ = store
+    results = retrieve("What reward function does the cautious curiosity agent use?", index, chunks, k=3,
+                       method=method)
+    assert [r["rank"] for r in results] == [1, 2, 3]
+    assert results[0]["source"] == PAPER and results[0]["page"] == 1
+    assert results[0]["score"] >= results[1]["score"] >= results[2]["score"]
 
-    print(f"Q{number}: {question}  ({elapsed_ms:.1f} ms)")
-    for r in results:
-        text = r["text"][:150].replace("\n", " ")
-        print(f"  #{r['rank']} score {r['score']:.4f} | {short(r['source'])} p{r['page']} | chunk {r['chunk_id']}")
-        print(f"     {text}")
-    print()
 
-print("=== Top-K experiment (question 2) ===")
-question = QUESTIONS[1]
-by_k = {k: retrieve(question, index, chunks, k=k) for k in (1, 3, 5)}
-print(f"{'rank':<5}" + "".join(f"| {'k=' + str(k):<36}" for k in by_k))
-for rank in range(1, 6):
-    row = f"{rank:<5}"
-    for k, results in by_k.items():
-        if rank <= len(results):
-            r = results[rank - 1]
-            row += f"| {r['score']:.4f} {short(r['source'], 20):<23} p{r['page']:<3} "
-        else:
-            row += f"| {'':<36}"
-    print(row)
+def test_source_filter_keeps_one_paper(store: tuple) -> None:
+    index, chunks, _ = store
+    results = retrieve("How can reinforcement learning be used for load testing?", index, chunks, k=3, source=PAPER)
+    assert results and all(r["source"] == PAPER for r in results)
+    assert retrieve("anything", index, chunks, source="missing.pdf") == []
 
-print("\n=== One paper only (source filter) ===")
-paper = sorted({c["source"] for c in chunks})[0]
-filtered = retrieve(QUESTIONS[1], index, chunks, k=3, source=paper)
-for r in filtered:
-    print(f"  #{r['rank']} score {r['score']:.4f} | {short(r['source'])} p{r['page']} | chunk {r['chunk_id']}")
-if len(filtered) != 3 or any(r["source"] != paper for r in filtered) or [r["rank"] for r in filtered] != [1, 2, 3]:
-    raise SystemExit(f"Source filter failed: expected 3 chunks from {paper} ranked 1, 2, 3")
-print(f"  OK: all 3 results come from {short(paper)}")
+
+def test_k_larger_than_the_paper_returns_all_its_chunks(store: tuple) -> None:
+    index, chunks, _ = store
+    count = sum(1 for c in chunks if c["source"] == OTHER)
+    assert len(retrieve("frame rate", index, chunks, k=50, source=OTHER)) == count
+
+
+def test_rerank_scores_are_between_zero_and_one(store: tuple) -> None:
+    index, chunks, _ = store
+    results = retrieve("Which bugs can the platform inject?", index, chunks, k=3)
+    assert all(0.0 <= r["score"] <= 1.0 for r in results)
+    assert results[0]["score"] > 0.5
+
+
+def test_previous_question_helps_a_follow_up(store: tuple) -> None:
+    index, chunks, _ = store
+    # "And how was it evaluated?" alone does not say which agent; the previous question does
+    results = retrieve("And how was it evaluated?", index, chunks, k=1, source=PAPER,
+                       previous="What is the cautious curiosity agent?")
+    assert "judges" in results[0]["text"]
+
+
+def test_bad_input_is_refused(store: tuple) -> None:
+    index, chunks, _ = store
+    with pytest.raises(ValueError, match="empty"):
+        retrieve("   ", index, chunks)
+    with pytest.raises(ValueError, match="at least 1"):
+        retrieve("question", index, chunks, k=0)
+    with pytest.raises(ValueError, match="method"):
+        retrieve("question", index, chunks, method="magic")
+
+
+def test_reranker() -> None:
+    assert load_reranker() is load_reranker()
+    good, bad = rerank_scores("How many bugs were found?", ["The agent found 12 bugs.", "Cakes need flour."])
+    assert good > bad
+    assert rerank_scores("question", []) == []
+
+
+def test_check_model_matches() -> None:
+    check_model_matches({"model_name": "sentence-transformers/all-MiniLM-L6-v2"})
+    with pytest.raises(ValueError, match="different models"):
+        check_model_matches({"model_name": "other-model"})
