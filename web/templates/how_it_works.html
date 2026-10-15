@@ -86,7 +86,7 @@
             <div class="flow-phase"><span>Phase 4: Product</span></div>
             {{ node("Flask backend", "JSON routes to upload papers, build the index, ask questions and read the chat history.", 9, "app.py") }}
             {{ arrow() }}
-            {{ node("Dashboard", "These pages, written in plain HTML, CSS and JavaScript, so they also work without internet.", 10, "templates/, static/") }}
+            {{ node("Dashboard", "These pages, written in plain HTML, CSS and JavaScript, so they also work without internet.", 10, "web/") }}
             {{ arrow() }}
             {{ node("Testing and release", "pytest tests, browser tests, README, one-click setup scripts and CI checks on Windows, macOS and Linux.", 11, "tests/, .github/") }}
             {{ arrow() }}
@@ -112,7 +112,7 @@
                 <span class="node-icon">{{ icon('code', 18) }}</span>
                 <strong>Flask server</strong>
                 <span>app.py + src/</span>
-                <small>reads index/ and chats/</small>
+                <small>reads and writes storage/</small>
             </div>
             <div class="arch-link"><b>Ollama API</b><i></i><i></i></div>
             <div class="arch-box">
@@ -130,7 +130,7 @@
                     <p>Runs after you add papers. Only new or changed papers are read. Route: <code>POST /process</code></p>
                 </div>
                 <div class="flow">
-                    {{ node("PDFs in data/", "The papers you uploaded.", "A1") }}
+                    {{ node("PDFs in storage/papers/", "The papers you uploaded.", "A1") }}
                     {{ arrow() }}
                     {{ node("Extract text per page", "pdfplumber reads each page. Headers, page numbers and references are removed, tables are written row by row, scans are read with OCR.", "A2") }}
                     {{ arrow() }}
@@ -138,7 +138,7 @@
                     {{ arrow() }}
                     {{ node("Embed every chunk", "all-MiniLM-L6-v2 turns each chunk into 384 numbers.", "A4") }}
                     {{ arrow() }}
-                    {{ node("Save the FAISS index", "New vectors are added to index/faiss.index, text and pages to index/chunks.json. The other papers are not touched.", "A5") }}
+                    {{ node("Save the FAISS index", "New vectors are added to faiss.index, text and pages to chunks.json, in storage/index/. The other papers are not touched.", "A5") }}
                 </div>
             </div>
 
@@ -159,7 +159,7 @@
                     {{ arrow() }}
                     {{ node("llama3.2:3b answers", "Word by word, straight to the screen. It may only use the sources; if they do not help, it says it could not find it.", "B5") }}
                     {{ arrow() }}
-                    {{ node("Answer on screen", "With the sources, their pages and scores. The chat is saved in chats/.", "B6") }}
+                    {{ node("Answer on screen", "With the sources, their pages and scores. The chat is saved in storage/chats/.", "B6") }}
                 </div>
             </div>
         </div>

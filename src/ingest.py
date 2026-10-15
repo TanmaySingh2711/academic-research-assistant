@@ -43,17 +43,17 @@ def is_compatible(info: dict[str, Any], chunk_size: int = CHUNK_SIZE, overlap: i
     return "papers" in info and all(info.get(key) == value for key, value in wanted.items())
 
 
-def pdf_paths(data_dir: Path) -> dict[str, Path]:
-    if not data_dir.exists():
+def pdf_paths(papers_dir: Path) -> dict[str, Path]:
+    if not papers_dir.exists():
         return {}
-    return {p.name: p for p in sorted(data_dir.iterdir()) if p.suffix.lower() == ".pdf"}
+    return {p.name: p for p in sorted(papers_dir.iterdir()) if p.suffix.lower() == ".pdf"}
 
 
-def papers_needing_index(data_dir: str | Path, info: dict[str, Any] | None) -> list[str]:
-    """PDFs in data_dir that are not in the index, or changed since they were indexed.
+def papers_needing_index(papers_dir: str | Path, info: dict[str, Any] | None) -> list[str]:
+    """PDFs in papers_dir that are not in the index, or changed since they were indexed.
 
     With an index from other settings, every PDF needs to be indexed again."""
-    pdfs = pdf_paths(Path(data_dir))
+    pdfs = pdf_paths(Path(papers_dir))
     if info is None or not is_compatible(info):
         return sorted(pdfs)
     indexed = info["papers"]
@@ -61,18 +61,18 @@ def papers_needing_index(data_dir: str | Path, info: dict[str, Any] | None) -> l
                   if name not in indexed or indexed[name]["file"] != file_signature(path))
 
 
-def run_ingestion(data_dir: str | Path = "data", index_dir: str | Path = "index", full: bool = False,
+def run_ingestion(papers_dir: str | Path, index_dir: str | Path, full: bool = False,
                   chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP) -> dict[str, Any]:
-    """Bring the index up to date with the PDFs in data_dir and save it. Returns a short summary.
+    """Bring the index up to date with the PDFs in papers_dir and save it. Returns a short summary.
 
     full=True rebuilds everything; otherwise only new and changed papers are read and embedded,
-    and papers that are no longer in data_dir are removed from the index.
+    and papers that are no longer in papers_dir are removed from the index.
     """
     start = time.perf_counter()
-    data_dir, index_dir = Path(data_dir), Path(index_dir)
-    pdfs = pdf_paths(data_dir)
+    papers_dir, index_dir = Path(papers_dir), Path(index_dir)
+    pdfs = pdf_paths(papers_dir)
     if not pdfs:
-        raise ValueError(f"No PDF files found in '{data_dir}'. Upload some PDFs first.")
+        raise ValueError(f"No PDF files found in '{papers_dir}'. Upload some PDFs first.")
 
     # Start from the saved index when it can be extended, otherwise from an empty one
     index: Any = None
@@ -88,7 +88,7 @@ def run_ingestion(data_dir: str | Path = "data", index_dir: str | Path = "index"
         except (FileNotFoundError, ValueError):
             index, chunks = None, []
 
-    # Papers that were deleted from data_dir, or changed, leave the index first
+    # Papers that were deleted from papers_dir, or changed, leave the index first
     removed = [name for name in papers if name not in pdfs]
     changed = [name for name in papers if name in pdfs and papers[name]["file"] != file_signature(pdfs[name])]
     for name in removed + changed:
@@ -97,7 +97,7 @@ def run_ingestion(data_dir: str | Path = "data", index_dir: str | Path = "index"
         del papers[name]
 
     to_index = sorted(name for name in pdfs if name not in papers)
-    pages = load_pdfs(data_dir, names=to_index) if to_index else []
+    pages = load_pdfs(papers_dir, names=to_index) if to_index else []
     new_chunks: list[Chunk] = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
     add_abbreviations(new_chunks, pages)
 

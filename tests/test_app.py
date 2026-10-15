@@ -30,7 +30,7 @@ def events(response: Any) -> list[dict]:
 
 def upload_copy(client: Any, project: dict[str, Path], name: str) -> Any:
     """Upload one of the sample PDFs again under another name."""
-    data = (project["data"] / PAPER).read_bytes()
+    data = (project["papers"] / PAPER).read_bytes()
     return client.post("/upload", content_type="multipart/form-data", data={"files": [(io.BytesIO(data), name)]})
 
 
@@ -45,7 +45,7 @@ def test_status_after_build(app_client: Any) -> None:
 
 
 def test_upload_checks_the_files(app_client: Any, project: dict[str, Path]) -> None:
-    pdf = (project["data"] / PAPER).read_bytes()
+    pdf = (project["papers"] / PAPER).read_bytes()
     body = app_client.post("/upload", content_type="multipart/form-data", data={"files": [
         (io.BytesIO(pdf), PAPER), (io.BytesIO(b"notes"), "notes.txt"), (io.BytesIO(b"not a pdf"), "fake.pdf"),
         (io.BytesIO(pdf), "../../evil name.pdf"),
@@ -53,14 +53,14 @@ def test_upload_checks_the_files(app_client: Any, project: dict[str, Path]) -> N
     assert body["saved"] == [PAPER, "evil_name.pdf"]
     assert [s["name"] for s in body["skipped"]] == ["notes.txt", "fake.pdf"]
     assert "Overwrote existing" in body["message"]
-    assert (project["data"] / "evil_name.pdf").exists()
+    assert (project["papers"] / "evil_name.pdf").exists()
     assert app_client.post("/upload", data={}).status_code == 400
 
 
 def test_upload_too_large(app_client: Any) -> None:
     app_module.app.config["MAX_CONTENT_LENGTH"] = 100
     try:
-        response = upload_copy(app_client, {"data": Path(app_module.app.config["DATA_DIR"])}, NEW)
+        response = upload_copy(app_client, {"papers": Path(app_module.app.config["PAPERS_DIR"])}, NEW)
         assert response.status_code == 413 and "25 MB" in response.get_json()["error"]
     finally:
         app_module.app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
@@ -77,7 +77,7 @@ def test_build_index_only_indexes_the_new_paper(app_client: Any, project: dict[s
 
 
 def test_build_index_errors_without_pdfs(app_client: Any, project: dict[str, Path]) -> None:
-    for pdf in project["data"].glob("*.pdf"):
+    for pdf in project["papers"].glob("*.pdf"):
         pdf.unlink()
     assert "No PDF files" in app_client.post("/process").get_json()["error"]
 
@@ -93,9 +93,9 @@ def test_old_index_is_marked_outdated(app_client: Any, project: dict[str, Path])
 
 
 def test_unreadable_paper(app_client: Any, project: dict[str, Path]) -> None:
-    from tests.pdf_writer import make_pdf
+    from evaluation.pdf_writer import make_pdf
 
-    make_pdf(project["data"] / "empty.pdf", [""])
+    make_pdf(project["papers"] / "empty.pdf", [""])
     app_client.post("/process")
     s = status(app_client)
     assert s["unreadable_papers"] == ["empty.pdf"] and "empty.pdf" not in s["papers_to_index"]
@@ -187,6 +187,8 @@ def test_error_in_the_middle_of_a_stream(app_client: Any, monkeypatch: pytest.Mo
     monkeypatch.setattr(src.rag_pipeline, "stream_answer", breaks_later)
     found = events(ask(app_client, question="Hi?", paper=PAPER, stream=True))
     assert found[-1] == {"type": "error", "error": "Ollama stopped.", "status": 503}
+    whole = ask(app_client, question="Hi?", paper=PAPER)  # without streaming: a normal JSON error
+    assert whole.status_code == 503 and whole.get_json()["error"] == "Ollama stopped."
 
 
 # ---------- Suggestions ----------
@@ -225,7 +227,7 @@ def test_delete_paper_does_only_that(app_client: Any, project: dict[str, Path], 
     body = app_client.delete(f"/api/papers/{PAPER}").get_json()
     assert body["chats_deleted"] == 1 and body["message"] == "Deleted the paper and 1 chat."
     after = status(app_client)
-    assert not (project["data"] / PAPER).exists()
+    assert not (project["papers"] / PAPER).exists()
     assert PAPER not in after["indexed_papers"] and len(after["indexed_papers"]) == 2
     assert after["papers_to_index"] == [NEW]  # the new paper was NOT indexed by the delete
     assert after["built_at"] == before["built_at"]  # nothing was built
@@ -242,7 +244,7 @@ def test_delete_paper_does_only_that(app_client: Any, project: dict[str, Path], 
 
 
 def test_deleting_the_last_paper_clears_the_index(app_client: Any, project: dict[str, Path]) -> None:
-    for name in sorted(os.listdir(project["data"])):
+    for name in sorted(os.listdir(project["papers"])):
         app_client.delete(f"/api/papers/{name}")
     s = status(app_client)
     assert not s["index_ready"] and s["pdfs_in_data"] == [] and s["chunks"] == 0
@@ -260,6 +262,44 @@ def test_errors_are_json(app_client: Any) -> None:
     missing = app_client.get("/no-such-page")
     assert missing.status_code == 404 and "error" in missing.get_json()
     assert app_client.get("/ask").status_code == 405
+
+
+# ---------- Only the dashboard itself may use the API ----------
+
+@pytest.mark.parametrize("host", ["localhost:5000", "127.0.0.1:5000", "[::1]:5000"])
+def test_local_host_names_are_answered(app_client: Any, host: str) -> None:
+    assert app_client.get("/status", headers={"Host": host}).status_code == 200
+
+
+def test_other_host_names_are_refused(app_client: Any) -> None:
+    # A page on evil.example could point its own domain at 127.0.0.1 (DNS rebinding)
+    response = app_client.get("/status", headers={"Host": "evil.example:5000"})
+    assert response.status_code == 403 and "localhost" in response.get_json()["error"]
+
+
+@pytest.mark.parametrize("headers", [{"Origin": "https://evil.example"}, {"Sec-Fetch-Site": "cross-site"}])
+def test_changes_from_other_websites_are_refused(app_client: Any, headers: dict) -> None:
+    assert app_client.post("/process", headers=headers).status_code == 403
+    assert app_client.delete(f"/api/papers/{PAPER}", headers=headers).status_code == 403
+    assert status(app_client)["papers_to_index"] == [] and PAPER in status(app_client)["pdfs_in_data"]
+
+
+def test_the_dashboard_itself_may_change_things(app_client: Any) -> None:
+    headers = {"Origin": "http://localhost", "Sec-Fetch-Site": "same-origin"}
+    assert app_client.post("/process", headers=headers).status_code == 200
+
+
+def test_chat_deleted_while_its_answer_is_written(app_client: Any) -> None:
+    chat_id = ask(app_client, question="First question?", paper=PAPER).get_json()["chat_id"]
+    response = app_client.post("/ask", json={"question": "More?", "chat_id": chat_id, "stream": True},
+                               buffered=False)
+    pieces = iter(response.response)
+    next(pieces)  # the answer has started
+    app_client.delete(f"/api/chats/{chat_id}")
+    last = json.loads(list(pieces)[-1])
+    response.close()
+    assert last["type"] == "error" and last["status"] == 404 and "deleted" in last["error"]
+    assert app_client.get("/api/chats").get_json() == []  # the chat did not come back
 
 
 @pytest.mark.ollama

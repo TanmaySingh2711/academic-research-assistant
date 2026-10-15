@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 
 import src.ingest
+from evaluation.pdf_writer import make_pdf
 from src.ingest import file_signature, is_compatible, papers_needing_index, run_ingestion
 from src.vector_store import INFO_FILE, load_store
-from tests.conftest import OTHER, PAPER
-from tests.make_sample_pdfs import DOCUMENTS, make_pdf
+from tests.conftest import DOCUMENTS, OTHER, PAPER
 
 
 @pytest.fixture

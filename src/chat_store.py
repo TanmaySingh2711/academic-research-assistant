@@ -1,4 +1,4 @@
-"""Chat history: every conversation is saved as one JSON file in the chats/ folder.
+"""Chat history: every conversation is saved as one JSON file in the chats folder (storage/chats/).
 
 A chat belongs to one paper (its filename), so the dashboard can group the chats by paper.
 """
@@ -52,11 +52,12 @@ def _save(chats_dir: str | Path, chat: dict[str, Any]) -> None:
 
 
 def get_chat(chats_dir: str | Path, chat_id: Any) -> dict[str, Any]:
-    """Return the full chat. Raises KeyError if it does not exist."""
+    """Return the full chat. Raises KeyError if it does not exist (or its file is broken)."""
     path = _path(chats_dir, chat_id)
-    if not path.exists():
-        raise KeyError(chat_id)
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise KeyError(chat_id) from None
 
 
 def new_chat_id() -> str:
@@ -154,18 +155,18 @@ def list_chats(chats_dir: str | Path) -> list[dict[str, Any]]:
         try:
             chat = json.loads(path.read_text(encoding="utf-8"))
             modified = path.stat().st_mtime_ns
-        except (OSError, ValueError):
+            answers = [m for m in chat["messages"] if m["role"] == "assistant"]
+            found.append((modified, {
+                "id": chat["id"],
+                "paper": chat["paper"],
+                "title": chat["title"],
+                "created_at": chat["created_at"],
+                "updated_at": chat["updated_at"],
+                "questions": len(answers),
+                "preview": answers[-1]["content"][:PREVIEW_LENGTH] if answers else "",
+            }))
+        except (OSError, ValueError, KeyError, TypeError):
             continue  # skip a broken file instead of failing the whole list
-        answers = [m for m in chat["messages"] if m["role"] == "assistant"]
-        found.append((modified, {
-            "id": chat["id"],
-            "paper": chat["paper"],
-            "title": chat["title"],
-            "created_at": chat["created_at"],
-            "updated_at": chat["updated_at"],
-            "questions": len(answers),
-            "preview": answers[-1]["content"][:PREVIEW_LENGTH] if answers else "",
-        }))
     # Newest first; the file change time decides when two saved times are equal
     found.sort(key=lambda pair: (pair[1]["updated_at"], pair[0]), reverse=True)
     return [summary for _, summary in found]

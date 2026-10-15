@@ -1,29 +1,14 @@
-# Virtual environment
+# Virtual environment (made by setup.bat / setup.sh)
 venv/
 
-# Python cache (normally never created: see scripts/configure_venv.py)
-__pycache__/
-*.pyc
+# Your papers, the search index and your chats (made by the app, private)
+storage/
 
-# All caches and generated files of the tools (ruff, mypy, pytest, coverage, evaluation) go to one folder
+# Caches of Python and the tools (ruff, mypy, pytest, coverage, evaluation)
 .cache/
+# Python makes these only when run without the venv helper (see scripts/configure_venv.py)
+__pycache__/
 
-# Secrets / local env
-.env
-
-# Generated FAISS index (keep the folder)
-index/*
-!index/.gitkeep
-
-# Uploaded PDFs (keep the folder)
-data/*
-!data/.gitkeep
-
-# Saved chat history (private, keep the folder)
-chats/*
-!chats/.gitkeep
-
-# OS / editor files
-.DS_Store
+# Editor and OS files
 .vscode/
-.idea/
+.DS_Store

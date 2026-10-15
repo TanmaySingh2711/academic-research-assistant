@@ -30,7 +30,7 @@ Everything runs on your own computer: no API keys, no paid services and no cloud
 
 ```
 Ingestion (Build index, only for new or changed papers)
-PDF files in data/
+PDF files in storage/papers/
   -> text per page (pdfplumber; OCR for scanned pages)
   -> clean-up: running headers, page numbers, rotated arXiv stamps and the reference list are removed,
      tables are written row by row ("Sky Hop: Playable (GA) 91.5, ...")
@@ -38,7 +38,7 @@ PDF files in data/
      each table gets its own chunk; a chunk in the middle of a section gets the section heading;
      abbreviations are explained ("Abbreviations: RL = Reinforcement Learning")
   -> embeddings (all-MiniLM-L6-v2, 384 numbers per chunk), normalized, added to FAISS (IndexFlatIP)
-  -> saved to index/ (faiss.index, chunks.json, info.json with one entry per paper)
+  -> saved to storage/index/ (faiss.index, chunks.json, info.json with one entry per paper)
 
 Question (Ask)
 question (+ the previous question of the chat, for follow-ups)
@@ -47,7 +47,7 @@ question (+ the previous question of the chat, for follow-ups)
   -> a cross-encoder re-ranks the best 20 chunks and keeps the top K
   -> prompt: rules + the last 2 questions and answers + numbered sources ([Source 1], ...) + question
   -> llama3.2:3b via Ollama (temperature 0.1, fixed seed), streamed word by word to the page
-  -> answer + sources, saved in chats/
+  -> answer + sources, saved in storage/chats/
 ```
 
 ## Tech stack
@@ -76,49 +76,49 @@ academic-research-assistant/
 |-- requirements-dev.txt    Extra tools for development and CI (ruff, mypy, pytest, Playwright, coverage)
 |-- pyproject.toml          Settings for ruff, mypy, pytest and coverage
 |-- LICENSE                 All rights reserved
-|-- data/                   Your PDFs go here (not included in the repo)
-|-- index/                  Saved FAISS index and chunk metadata (generated, not in the repo)
-|-- chats/                  Saved chat history (generated, not in the repo)
-|-- .cache/                 All caches and generated files of the tools (not in the repo)
-|-- .github/                CI workflow and the Ollama setup step it uses
-|-- evaluation/
-|   |-- corpus.py           4 synthetic papers laid out like real ones (headers, stamps, tables, references)
-|   |-- questions.json      68 questions about them, each with its page and the facts the answer needs
-|   |-- real_paper_questions.json  20 questions about one real paper (only runs if you have that paper)
-|   `-- evaluate.py         Measures retrieval (Hit@K, MRR) and answers (correct, cited)
+|-- src/                    The RAG pipeline (see below)
+|-- web/
+|   |-- templates/          The 3 pages, the shared layout and the icons
+|   `-- static/             css/, js/ (the Assistant is split into small modules in js/chat/) and the logo
 |-- scripts/
 |   |-- run_dashboard.ps1   Launcher used by run_dashboard.bat
 |   |-- serve.py            Runs the app on http://localhost:5000
 |   |-- build_index.py      Build the index from the terminal (--full to rebuild everything)
 |   |-- verify_setup.py     Checks the setup and downloads the two search models once
 |   `-- configure_venv.py   Sends the project's Python cache files to .cache/pycache/
-|-- src/
-|   |-- schema.py           The shapes of the dictionaries (Page, Chunk, SearchResult, ...) for type hints
-|   |-- loader.py           Read PDFs page by page, remove headers, stamps and references, tables, OCR
-|   |-- chunker.py          Sentence chunks, table chunks, section headings, abbreviations
-|   |-- embedder.py         Turn text into vectors with all-MiniLM-L6-v2
-|   |-- vector_store.py     Normalize vectors, build, save and load the FAISS index, remove a paper
-|   |-- ingest.py           Build index: only new and changed papers are read and embedded
-|   |-- bm25.py             Keyword search
-|   |-- reranker.py         Cross-encoder re-ranking
-|   |-- retriever.py        Vector, keyword and hybrid search, re-ranking, follow-up questions
-|   |-- prompt_builder.py   System prompt, earlier turns, numbered context and sources
-|   |-- generator.py        Call Ollama (whole answer or word by word), token counts, "not found" check
-|   |-- rag_pipeline.py     answer_question() and answer_question_stream(): retrieve -> prompt -> generate
-|   |-- chat_store.py       Save and list chats (one JSON file per chat in chats/)
-|   `-- suggestions.py      Suggested questions for a paper (saved in index/suggestions.json)
-|-- templates/
-|   |-- base.html           Shared layout: top bar and navigation
-|   |-- overview.html       Page 1: what the project is
-|   |-- chat.html           Page 2: the assistant (upload, build index, chat, chat history)
-|   |-- how_it_works.html   Page 3: three flowcharts
-|   `-- _icons.html         Line icons and the logo as inline SVG
-|-- static/
-|   |-- css/                base.css (shared), one file per page, and chat/ (one file per part of the Assistant)
-|   |-- js/                 common.js (shared helpers), how.js, and chat/ (the Assistant, 8 small modules)
-|   `-- img/logo.svg        App icon
-`-- tests/                  pytest tests (see "Running the tests")
+|-- evaluation/
+|   |-- corpus.py           4 synthetic papers laid out like real ones (headers, stamps, tables, references)
+|   |-- pdf_writer.py       Writes those PDFs with the standard library (also used by the tests)
+|   |-- questions.json      68 questions about them, each with its page and the facts the answer needs
+|   |-- real_paper_questions.json  20 questions about one real paper (only runs if you have that paper)
+|   `-- evaluate.py         Measures retrieval (Hit@K, MRR) and answers (correct, cited)
+|-- tests/                  pytest tests (see "Running the tests")
+|-- .github/                CI workflow and the Ollama setup step it uses
+|-- storage/                Made by the app, not in the repo:
+|   |-- papers/               your uploaded PDFs
+|   |-- index/                the FAISS index, the chunk text and the suggested questions
+|   `-- chats/                one JSON file per chat
+`-- .cache/                 All caches of Python and the tools (not in the repo)
 ```
+
+The pipeline in `src/`:
+
+| File | What it does |
+|---|---|
+| `schema.py` | The shapes of the dictionaries (Page, Chunk, SearchResult, ...) for type hints |
+| `loader.py` | Read PDFs page by page; remove headers, stamps and references; tables; OCR |
+| `chunker.py` | Sentence chunks, table chunks, section headings, abbreviations |
+| `embedder.py` | Turn text into vectors with all-MiniLM-L6-v2 |
+| `vector_store.py` | Normalize vectors; build, save and load the FAISS index; remove a paper |
+| `ingest.py` | Build index: only new and changed papers are read and embedded |
+| `bm25.py` | Keyword search |
+| `reranker.py` | Cross-encoder re-ranking |
+| `retriever.py` | Vector, keyword and hybrid search, re-ranking, follow-up questions |
+| `prompt_builder.py` | System prompt, earlier turns, numbered context and sources |
+| `generator.py` | Call Ollama (whole answer or word by word), token counts, "not found" check |
+| `rag_pipeline.py` | `answer_question()` and `answer_question_stream()`: retrieve, prompt, generate |
+| `chat_store.py` | Save and list chats |
+| `suggestions.py` | Suggested questions for a paper |
 
 The Assistant page's JavaScript is split by job: `state.js` (shared state), `sidebar.js` (papers and chats),
 `page.js` (status, Build index button, suggestions), `messages.js` (answers and sources), `chats.js`
@@ -200,7 +200,7 @@ The script creates the venv, installs the libraries, sets Python to keep its cac
 4. The answer appears word by word; the square button stops it (the part already written is kept). Open the sources under the answer to check the exact text.
 5. Use the **...** button next to a chat to rename or delete it, or next to a paper to delete the paper with all its chats. The menus also work with the keyboard (Tab, Enter, arrow keys, Esc).
 
-To build the index from the terminal instead (for example after copying PDFs into `data/` by hand):
+To build the index from the terminal instead (for example after copying PDFs into `storage/papers/` by hand):
 ```
 python scripts/build_index.py          # new and changed papers
 python scripts/build_index.py --full   # every paper again
@@ -227,7 +227,7 @@ Measures:
 python -m evaluation.evaluate                     # retrieval only (about a minute)
 python -m evaluation.evaluate --answers           # also the answers (needs Ollama, a few minutes)
 python -m evaluation.evaluate --method compare    # vector vs bm25 vs hybrid vs re-ranked
-python -m evaluation.evaluate --answers --data data --questions evaluation/real_paper_questions.json
+python -m evaluation.evaluate --answers --data storage/papers --questions evaluation/real_paper_questions.json
 ```
 
 The index for the evaluation is built in `.cache/eval/`, so your own index is never touched.
@@ -240,7 +240,7 @@ The index for the evaluation is built in `.cache/eval/`, so your own index is ne
 | Hit@3 | 88.3% | **98.3%** | 66.7% | **100%** |
 | MRR | 0.754 | **0.931** | 0.599 | **0.907** |
 | Correct answers | 86.8% | **97.1%** | 65.0% | **90 to 95%** |
-| Cited the correct page | 81.7% | **90 to 92%** | 44.4% | **94.4%** |
+| Cited the correct page | 81.7% | **88 to 92%** | 44.4% | **94.4%** |
 
 The retrieval numbers are the same on every run. The answer numbers can move by one or two questions between runs (the model runs with a fixed seed, but Ollama is not fully deterministic), so they are given as a range where they moved.
 
@@ -334,7 +334,7 @@ python -m pytest -m "not browser and not ollama"   # skip the browser and real-L
 
 Notes:
 
-- Every test runs in temporary folders, so it never changes your `data/`, `index/` or `chats/`.
+- Every test runs in temporary folders, so it never changes your `storage/` folder.
 - Most tests use a fake LLM, so they are fast and give the same result every time. Tests marked `ollama` use the real `llama3.2:3b` and are skipped when Ollama is not running.
 - Tests marked `browser` use the Edge or Chrome that is already installed (Playwright does not download a browser) and are skipped when neither is there.
 
@@ -379,13 +379,7 @@ Everything that is generated again and again goes into one folder, `.cache/`:
 - ruff, mypy, pytest and coverage write their caches to `.cache/` (set in `pyproject.toml`).
 - CI fails if a `__pycache__` folder ever appears outside `venv/`.
 - You can delete `.cache/` at any time; it is created again when needed.
-- `index/` holds the generated search index, `data/` your PDFs and `chats/` your chats. All of these are ignored by git.
-
-## Screenshots
-
-![Dashboard](docs/screenshot.png)
-
-Screenshot coming soon.
+- `storage/` holds your PDFs, the search index and your chats. It is created by the app and ignored by git.
 
 ## License
 

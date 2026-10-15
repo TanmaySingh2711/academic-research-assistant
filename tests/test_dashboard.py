@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
+WEB = Path(__file__).resolve().parent.parent / "web"
 PAGES = {
     "/": ["Ask your research papers", "What this project is", "From PDF to answer"],
     "/chat": ["Papers", "Upload PDF", "Build index", "What would you like to know?", "confirm-dialog"],
@@ -28,7 +28,7 @@ def test_page_is_served_offline(client: Any, url: str) -> None:
         assert text in html
     assert "http://" not in html and "https://" not in html  # nothing is loaded from the internet
     scripts = re.findall(r"<script([^>]*)>", html)
-    assert scripts and all("src=" in attrs for attrs in scripts)  # all JavaScript lives in static/js/
+    assert scripts and all("src=" in attrs for attrs in scripts)  # all JavaScript lives in web/static/js/
 
 
 def test_every_linked_file_and_module_exists(client: Any) -> None:
@@ -36,7 +36,7 @@ def test_every_linked_file_and_module_exists(client: Any) -> None:
     for url in PAGES:
         files.update(re.findall(r'(?:href|src)="(/static/[^"]+)"', client.get(url).get_data(as_text=True)))
     # ES modules import each other: follow those imports too
-    for module in (ROOT / "static" / "js" / "chat").glob("*.js"):
+    for module in (WEB / "static" / "js" / "chat").glob("*.js"):
         for target in re.findall(r'from "\./([\w-]+\.js)"', module.read_text(encoding="utf-8")):
             files.add(f"/static/js/chat/{target}")
     assert "/static/js/chat/main.js" in files and "/static/css/chat/composer.css" in files
@@ -52,7 +52,7 @@ def test_history_page_was_removed(client: Any) -> None:
 
 def test_no_long_dashes_or_emoji_in_the_ui() -> None:
     # Long dashes and emoji make text look machine-written, so the UI must not use them
-    bad = re.compile("[–—]|[\U0001F300-\U0001FAFF☀-➿]")
-    files = [*(ROOT / "templates").glob("*.html"), *(ROOT / "static").rglob("*.css"), *(ROOT / "static").rglob("*.js")]
+    bad = re.compile("[\u2013\u2014]|[\U0001F300-\U0001FAFF\u2600-\u27bf]")
+    files = [*(WEB / "templates").glob("*.html"), *(WEB / "static").rglob("*.css"), *(WEB / "static").rglob("*.js")]
     assert len(files) > 15
     assert [str(f) for f in files if bad.search(f.read_text(encoding="utf-8"))] == []

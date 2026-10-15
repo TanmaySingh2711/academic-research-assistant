@@ -86,7 +86,7 @@ def save_store(index: Any, chunks: list[Chunk], index_dir: str | Path, info: dic
         json.dump(info, f, indent=2)
 
 
-def load_store(index_dir: str | Path = "index") -> tuple[Any, list[Chunk], dict[str, Any]]:
+def load_store(index_dir: str | Path) -> tuple[Any, list[Chunk], dict[str, Any]]:
     """Load and return (index, chunks, info) from index_dir."""
     index_dir = Path(index_dir)
     paths = [index_dir / INDEX_FILE, index_dir / CHUNKS_FILE, index_dir / INFO_FILE]

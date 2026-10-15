@@ -9,6 +9,7 @@ import uuid
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from flask import Flask, Response, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
@@ -34,14 +35,17 @@ from src.suggestions import SUGGESTIONS_FILE, forget, get_suggestions
 from src.vector_store import CHUNKS_FILE, INDEX_FILE, INFO_FILE, load_store, remove_paper, save_store
 
 BASE_DIR = Path(__file__).parent
+STORAGE_DIR = BASE_DIR / "storage"  # everything the app saves; created when needed, ignored by git
 ALLOWED_K = (1, 3, 5)
+# The dashboard runs only on this computer, so these are the only host names it answers to
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB per upload request
 # Folders (tests point these to temporary folders, so they never touch your real files)
-app.config["DATA_DIR"] = BASE_DIR / "data"  # uploaded PDFs
-app.config["INDEX_DIR"] = BASE_DIR / "index"  # FAISS index, chunk text, suggested questions
-app.config["CHATS_DIR"] = BASE_DIR / "chats"  # one JSON file per chat
+app.config["PAPERS_DIR"] = STORAGE_DIR / "papers"  # uploaded PDFs
+app.config["INDEX_DIR"] = STORAGE_DIR / "index"  # FAISS index, chunk text, suggested questions
+app.config["CHATS_DIR"] = STORAGE_DIR / "chats"  # one JSON file per chat
 app.config["WARM_UP_MODEL"] = True  # load the models in the background after the first request
 
 # Only one request at a time may change the index (Build index, or deleting a paper)
@@ -58,8 +62,8 @@ Store = tuple[Any, list[Chunk], dict[str, Any]]
 store: Store | None = None
 
 
-def data_dir() -> Path:
-    return Path(app.config["DATA_DIR"])
+def papers_dir() -> Path:
+    return Path(app.config["PAPERS_DIR"])
 
 
 def index_dir() -> Path:
@@ -91,6 +95,9 @@ def clear_index() -> None:
     store = None
 
 
+CHAT_DELETED = "This chat was deleted while the answer was being written."
+
+
 def error(message: str, status: int) -> tuple[Response, int]:
     """Every error is returned as JSON: {"error": "..."}."""
     return jsonify({"error": message}), status
@@ -110,6 +117,26 @@ def warm_up_models() -> None:
 
 
 @app.before_request
+def only_this_computer() -> Any:
+    """Answer only the dashboard itself.
+
+    - The host name must be this computer. A web page on another site could otherwise point its
+      own domain at 127.0.0.1 ("DNS rebinding") and read the API.
+    - A request that changes something (upload, build, ask, rename, delete) must not come from
+      another website. Browsers send the Origin header with such requests, and plain HTML forms
+      on any site could otherwise post to http://localhost:5000.
+    """
+    if urlsplit(f"//{request.host}").hostname not in LOCAL_HOSTS:
+        return error("This dashboard only answers on localhost.", 403)
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("Origin")
+        other_site = origin is not None and urlsplit(origin).netloc != request.host
+        if other_site or request.headers.get("Sec-Fetch-Site") == "cross-site":
+            return error("Requests from other websites are not allowed.", 403)
+    return None
+
+
+@app.before_request
 def start_warm_up() -> None:
     # The server and its pages start at once; the slow models load in the background meanwhile
     global _warm_up_started
@@ -124,14 +151,14 @@ def indexed_papers(current: Store | None) -> list[str]:
 
 
 def pdfs_in_data() -> list[str]:
-    folder = data_dir()
+    folder = papers_dir()
     return sorted(p.name for p in folder.glob("*") if p.suffix.lower() == ".pdf") if folder.exists() else []
 
 
 def papers_to_index(current: Store | None) -> list[str]:
-    """PDFs in data/ that are not in the index yet, or that changed after they were indexed
+    """PDFs in storage/papers/ that are not in the index yet, or that changed after they were indexed
     (for example uploaded again with the same name). Build index is only useful for these."""
-    return papers_needing_index(data_dir(), current[2] if current else None)
+    return papers_needing_index(papers_dir(), current[2] if current else None)
 
 
 def unreadable_papers(current: Store | None) -> list[str]:
@@ -167,7 +194,7 @@ def upload() -> Any:
     if not files:
         return error("No files uploaded. Choose one or more PDF files.", 400)
 
-    data_dir().mkdir(exist_ok=True)
+    papers_dir().mkdir(parents=True, exist_ok=True)
     saved, skipped, overwritten = [], [], []
 
     for f in files:
@@ -189,7 +216,7 @@ def upload() -> Any:
             skipped.append({"name": filename, "reason": "Invalid filename"})
             continue
 
-        path = data_dir() / name
+        path = papers_dir() / name
         if path.exists():
             overwritten.append(name)
         f.save(path)
@@ -213,7 +240,7 @@ def process() -> Any:
     """Build index: read and embed the papers that are new or changed. The others keep their vectors."""
     with process_lock:
         try:
-            summary = run_ingestion(data_dir(), index_dir())
+            summary = run_ingestion(papers_dir(), index_dir())
         except ValueError as e:  # no PDFs, or no text in any PDF
             return error(str(e), 400)
         load_index_into_memory()
@@ -234,12 +261,14 @@ def delete_paper(name: str) -> Any:
     The other papers are not indexed again (a new paper stays "not indexed" until you click
     Build index), so this takes only a moment.
     """
-    path = data_dir() / name
-    # Only plain file names of PDFs in data/ (no paths like "../app.py")
-    if name != secure_filename(name) or not name.lower().endswith(".pdf") or not path.is_file():
+    path = papers_dir() / name
+    # Only plain file names of PDFs in storage/papers/ (no paths like "../app.py")
+    if name != secure_filename(name) or not name.lower().endswith(".pdf"):
         return error("Paper not found.", 404)
 
     with process_lock:
+        if not path.is_file():  # checked inside the lock: two deletes at once remove it only once
+            return error("Paper not found.", 404)
         path.unlink()
         chats_deleted = delete_chats_for_paper(chats_dir(), name)
         forget(name, index_dir())
@@ -324,14 +353,20 @@ def ask() -> Any:
     target = chats_dir()
 
     def save(result: dict[str, Any]) -> dict[str, Any]:
+        # Raises KeyError if the chat was deleted while its answer was being written
         chat = add_exchange(target, chat_id, paper, result, new_id=new_id)
         return {**result, "chat_id": chat["id"], "paper": paper, "title": chat["title"]}
 
     if not data.get("stream"):
         final = first
-        for final in events:
-            pass
-        return jsonify(save(final["result"]))
+        try:
+            for final in events:
+                pass
+            return jsonify(save(final["result"]))
+        except (ConnectionError, RuntimeError) as e:  # Ollama stopped in the middle of the answer
+            return error(str(e), 503)
+        except KeyError:
+            return error(CHAT_DELETED, 404)
 
     def stream() -> Iterator[str]:
         pieces: list[str] = []
@@ -345,6 +380,8 @@ def ask() -> Any:
                 elif event["type"] == "done":
                     finished = True
                     yield event_line({"type": "done", "result": save(event["result"])})
+        except KeyError:
+            yield event_line({"type": "error", "error": CHAT_DELETED, "status": 404})
         except (ConnectionError, RuntimeError) as e:
             finished = True
             yield event_line({"type": "error", "error": str(e), "status": 503})
@@ -357,7 +394,10 @@ def ask() -> Any:
             if not finished and "".join(pieces).strip():
                 partial = {"answer": "".join(pieces).strip(), "prompt_tokens": None, "answer_tokens": None,
                            "seconds": round(time.perf_counter() - started, 2)}
-                save({**make_result(question, k, results, partial), "stopped": True})
+                try:
+                    save({**make_result(question, k, results, partial), "stopped": True})
+                except KeyError:
+                    pass  # the chat was deleted meanwhile: nothing to keep
 
     # X-Accel-Buffering: no proxy may hold the pieces back (they must reach the page at once)
     return Response(stream(), mimetype="application/x-ndjson", headers={"X-Accel-Buffering": "no"})

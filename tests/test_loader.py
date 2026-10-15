@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from evaluation.pdf_writer import make_pdf
 from src.loader import (
     attach_captions,
     clean_text,
@@ -15,7 +16,6 @@ from src.loader import (
     strip_edges,
     table_to_text,
 )
-from tests.pdf_writer import make_pdf
 
 HEADER = "Journal of Testing, Vol. 3, 2026"
 BODY = "Results. The agent found {n} bugs in the level, which is more than the random baseline found."

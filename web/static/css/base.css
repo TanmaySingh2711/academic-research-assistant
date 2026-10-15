@@ -203,8 +203,7 @@ code {
     background: var(--text-faint);
 }
 
-.status-pill.is-ok .status-dot,
-.dot-ok {
+.status-pill.is-ok .status-dot {
     background: var(--ok);
     box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
     animation: pulse 2.4s infinite;
@@ -261,10 +260,6 @@ code {
 .section-lead {
     margin: 0 0 24px;
     color: var(--text-muted);
-}
-
-.accent {
-    color: var(--cyan);
 }
 
 .gradient-text {
@@ -392,7 +387,7 @@ code {
     outline-offset: 2px;
 }
 
-/* ---------- Badges and chips ---------- */
+/* ---------- Badges ---------- */
 
 .badge {
     display: inline-flex;
@@ -421,18 +416,6 @@ code {
     background: rgba(251, 191, 36, 0.1);
     color: var(--warn);
     border: 1px solid rgba(251, 191, 36, 0.35);
-}
-
-.chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--text-muted);
-    font-size: 0.85rem;
 }
 
 /* ---------- Spinner and loading ---------- */

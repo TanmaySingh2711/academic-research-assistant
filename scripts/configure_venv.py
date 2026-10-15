@@ -18,7 +18,6 @@ from pathlib import Path
 
 HELPER_FILE = "project_pycache.py"
 PTH_FILE = "project_pycache.pth"
-OLD_PTH_FILE = "no_pycache.pth"  # from an earlier version of this script
 
 # Python runs lines that start with "import" in a .pth file at every start of the venv
 PTH_LINE = "import project_pycache\n"
@@ -96,7 +95,6 @@ def main() -> None:
     site_packages = Path(sysconfig.get_paths()["purelib"])
     (site_packages / HELPER_FILE).write_text(HELPER_CODE, encoding="utf-8")
     (site_packages / PTH_FILE).write_text(PTH_LINE, encoding="utf-8")
-    (site_packages / OLD_PTH_FILE).unlink(missing_ok=True)
     print(f"Python cache files for this project now go to .cache/pycache/ (helper in {site_packages})")
 
 

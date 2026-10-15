@@ -1,4 +1,4 @@
-"""Build the index from the terminal: PDFs in data/ -> FAISS index in index/.
+"""Build the index from the terminal: PDFs in storage/papers/ -> FAISS index in storage/index/.
 
 Like the Build index button, it only reads and embeds papers that are new or changed.
 
@@ -19,19 +19,20 @@ from src.ingest import run_ingestion  # noqa: E402
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build the index from the PDFs in data/.")
+    parser = argparse.ArgumentParser(description="Build the index from the PDFs in storage/papers/.")
     parser.add_argument("--full", action="store_true", help="read and embed every paper again")
     args = parser.parse_args()
 
-    summary = run_ingestion(ROOT / "data", ROOT / "index", full=args.full)
+    storage = ROOT / "storage"
+    summary = run_ingestion(storage / "papers", storage / "index", full=args.full)
 
-    print(f"PDFs in data/:  {summary['pdfs']}")
+    print(f"PDFs:           {summary['pdfs']}")
     print(f"Indexed now:    {', '.join(summary['indexed']) or 'nothing (everything was already indexed)'}")
     if summary["removed"]:
         print(f"Removed:        {', '.join(summary['removed'])}")
     print(f"Pages read:     {summary['pages']}")
-    print(f"Chunks in index: {summary['chunks']} ({summary['new_chunks']} new)")
-    print(f"Saved to index/ in {summary['seconds']} seconds")
+    print(f"Chunks:         {summary['chunks']} ({summary['new_chunks']} new)")
+    print(f"Saved to storage/index/ in {summary['seconds']} seconds")
 
 
 if __name__ == "__main__":

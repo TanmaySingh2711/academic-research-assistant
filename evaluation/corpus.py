@@ -11,7 +11,7 @@ Usage: python -m evaluation.corpus [output_dir]   (default: .cache/eval_corpus)
 import sys
 from pathlib import Path
 
-from tests.pdf_writer import make_pdf
+from evaluation.pdf_writer import make_pdf
 
 NOTE = "Synthetic text written to evaluate a question answering system. It is not a real research paper."
 HEADER = "Proceedings of the Workshop on Game AI Testing 2026"

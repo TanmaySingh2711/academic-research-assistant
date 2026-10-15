@@ -85,11 +85,15 @@ def ocr_page(page: Any) -> str:
         from rapidocr_onnxruntime import RapidOCR
     except ImportError:
         return ""  # OCR is optional: without it, scanned pages are skipped
-    with _ocr_lock:
-        if _ocr_engine is None:
-            _ocr_engine = RapidOCR()
-        image = page.to_image(resolution=200).original
-        found, _ = _ocr_engine(np.array(image.convert("RGB")))
+    try:
+        with _ocr_lock:
+            if _ocr_engine is None:
+                _ocr_engine = RapidOCR()
+            image = page.to_image(resolution=200).original
+            found, _ = _ocr_engine(np.array(image.convert("RGB")))
+    except Exception as e:  # a page OCR cannot read should not stop the rest of the paper
+        print(f"WARNING: OCR failed on page {page.page_number}: {e}")
+        return ""
     # found: [[box corners, text, confidence], ...], sorted top to bottom by RapidOCR
     return "\n".join(text for _, text, confidence in (found or []) if float(confidence) >= 0.5)
 
@@ -214,9 +218,9 @@ def load_pdf(path: str | Path) -> list[Page]:
     return pages
 
 
-def load_pdfs(data_dir: str | Path = "data", names: list[str] | None = None) -> list[Page]:
-    """Load all PDFs in data_dir (sorted by name), or only `names`, as one combined list of pages."""
-    pdf_paths = sorted(p for p in Path(data_dir).iterdir() if p.suffix.lower() == ".pdf")
+def load_pdfs(papers_dir: str | Path, names: list[str] | None = None) -> list[Page]:
+    """Load all PDFs in papers_dir (sorted by name), or only `names`, as one combined list of pages."""
+    pdf_paths = sorted(p for p in Path(papers_dir).iterdir() if p.suffix.lower() == ".pdf")
     if names is not None:
         pdf_paths = [p for p in pdf_paths if p.name in names]
 

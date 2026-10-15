@@ -37,13 +37,14 @@ def browser() -> Iterator[Any]:
 
 
 @pytest.fixture
-def server(project: dict[str, Path], fake_llm: FakeLLM) -> Iterator[str]:
+def server(project: dict[str, Path], fake_llm: FakeLLM, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     """The real dashboard on a free port, serving the temporary folders."""
     from werkzeug.serving import make_server
 
+    monkeypatch.setattr(app_module, "is_ollama_running", lambda: True)  # the fake LLM stands in for Ollama
     app = app_module.app
-    old = {key: app.config[key] for key in ("DATA_DIR", "INDEX_DIR", "CHATS_DIR", "WARM_UP_MODEL")}
-    app.config.update(DATA_DIR=project["data"], INDEX_DIR=project["index"], CHATS_DIR=project["chats"],
+    old = {key: app.config[key] for key in ("PAPERS_DIR", "INDEX_DIR", "CHATS_DIR", "WARM_UP_MODEL")}
+    app.config.update(PAPERS_DIR=project["papers"], INDEX_DIR=project["index"], CHATS_DIR=project["chats"],
                       WARM_UP_MODEL=False)
     app_module.load_index_into_memory()
     httpd = make_server("127.0.0.1", 0, app, threaded=True)
@@ -135,8 +136,8 @@ def test_stop_button(page: Any, fake_llm: FakeLLM) -> None:
 
 
 def test_new_paper_needs_build_index(page: Any, project: dict[str, Path]) -> None:
-    new_pdf = project["data"].parent / "My_New_Paper.pdf"
-    new_pdf.write_bytes((project["data"] / PAPER).read_bytes())
+    new_pdf = project["papers"].parent / "My_New_Paper.pdf"
+    new_pdf.write_bytes((project["papers"] / PAPER).read_bytes())
     page.set_input_files("#file-input", str(new_pdf))
     expect(page.locator(".paper-pick")).to_have_count(4)
     expect(page.locator("#build-prompt")).to_be_visible()  # the new paper's page opens by itself

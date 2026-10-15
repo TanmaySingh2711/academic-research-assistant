@@ -57,7 +57,8 @@ def test_list_is_newest_first_with_summaries(tmp_path: Path) -> None:
     assert [s["id"] for s in summaries] == [second["id"], first["id"]]
     assert summaries[1]["questions"] == 2 and summaries[0]["preview"] == "I could not find this."
     (tmp_path / "broken.json").write_text("{not json")
-    assert len(list_chats(tmp_path)) == 2  # a broken file is skipped
+    (tmp_path / "half.json").write_text('{"id": "x"}')
+    assert len(list_chats(tmp_path)) == 2  # broken files are skipped
 
 
 def test_rename(tmp_path: Path) -> None:

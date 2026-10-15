@@ -1,6 +1,6 @@
 """Suggested questions: the local model reads the start of a paper and writes a few questions about it.
 
-The questions are saved in index/suggestions.json, so each paper is read only once after it is indexed.
+The questions are saved in suggestions.json in the index folder, so each paper is read only once after it is indexed.
 """
 
 import json

@@ -20,8 +20,10 @@ METHODS = ("vector", "bm25", "hybrid", "rerank")
 CANDIDATES = 20  # chunks the cross-encoder re-scores
 RRF_K = 60  # standard constant of reciprocal rank fusion
 
-# The BM25 index is built once per chunk list and reused for every question
-_bm25_cache: dict[str, Any] = {"chunks": None, "index": None}
+# The BM25 index is built once per chunk list and reused for every question.
+# Chunks and index are kept as one pair, replaced in one step, so a question asked while the
+# index is being rebuilt never gets a BM25 index that belongs to other chunks.
+_bm25_cache: tuple[list[Chunk] | None, BM25 | None] = (None, None)
 
 
 def embed_query(question: str) -> Any:
@@ -32,10 +34,12 @@ def embed_query(question: str) -> Any:
 
 
 def bm25_for(chunks: list[Chunk]) -> BM25:
-    if _bm25_cache["chunks"] is not chunks:
-        _bm25_cache["index"] = BM25(chunks)
-        _bm25_cache["chunks"] = chunks
-    return _bm25_cache["index"]
+    global _bm25_cache
+    cached_chunks, index = _bm25_cache
+    if cached_chunks is not chunks or index is None:
+        index = BM25(chunks)
+        _bm25_cache = (chunks, index)
+    return index
 
 
 def vector_scores(question: str, index: Any, rows: list[int]) -> dict[int, float]:
