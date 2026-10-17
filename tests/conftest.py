@@ -3,8 +3,12 @@
 Everything runs in temporary folders, so your real storage/ folder is never touched.
 Most tests use a fake LLM, so they are fast, give the same result every time and need no
 Ollama. Tests marked "ollama" use the real model and are skipped when Ollama is not running.
+
+CI sets REQUIRE_ALL_TESTS=1: then a skipped test (no Ollama, no browser, no OCR) fails the run,
+so a missing tool can never make CI look green while tests did not really run.
 """
 
+import os
 import shutil
 import socket
 import time
@@ -96,6 +100,19 @@ def pytest_collection_modifyitems(config: Any, items: list[Any]) -> None:
     for item in items:
         if "ollama" in item.keywords:
             item.add_marker(skip)
+
+
+def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
+    """With REQUIRE_ALL_TESTS=1 (set in CI), any skipped test makes the whole run fail."""
+    if os.environ.get("REQUIRE_ALL_TESTS") != "1":
+        return
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    skipped = reporter.stats.get("skipped", []) if reporter else []
+    if skipped:
+        reporter.write_line(f"REQUIRE_ALL_TESTS=1, but {len(skipped)} test(s) were skipped:", red=True)
+        for report in skipped:
+            reporter.write_line(f"  {report.nodeid}: {report.longrepr[-1] if report.longrepr else ''}", red=True)
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 @pytest.fixture(scope="session")

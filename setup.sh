@@ -54,10 +54,16 @@ fi
 
 echo
 echo "Checking the setup..."
-venv/bin/python scripts/verify_setup.py || true
+if ! venv/bin/python scripts/verify_setup.py; then
+    echo
+    echo "ERROR: The setup check failed (a library or a search model is missing). Read the messages above."
+    echo "On Linux, the OCR also needs the OpenGL library: sudo apt-get install libgl1"
+    echo "Then run this script again."
+    exit 1
+fi
 
 echo
 echo "Setup complete. Start the app with:"
 echo "  source venv/bin/activate"
-echo "  python app.py"
-echo "Then open http://127.0.0.1:5000"
+echo "  python scripts/serve.py"
+echo "Then open http://localhost:5000"

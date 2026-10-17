@@ -107,6 +107,8 @@ def test_select_a_paper_and_ask(page: Any, fake_llm: FakeLLM) -> None:
     expect(page.locator(".msg-user .bubble")).to_have_text("What reward function does the agent use?")
     expect(page.locator(".source-card")).to_have_count(3)
     expect(page.locator(".msg-assistant .answer .cite")).to_have_count(1)
+    expect(page.locator("#thread")).not_to_have_attribute("aria-busy", "true")  # read out once, when complete
+    expect(page.get_by_role("main")).to_have_count(1)
     assert "?chat=" in page.url
     expect(paper_row(page, app_module_name(PAPER)).locator(".chat-item")).to_have_count(1)
 
@@ -128,9 +130,11 @@ def test_stop_button(page: Any, fake_llm: FakeLLM) -> None:
     send = page.locator("#send-button")
     expect(send).to_have_class("send-btn is-stop")
     expect(page.locator(".answer-typing")).to_be_visible()
+    expect(page.locator("#thread")).to_have_attribute("aria-busy", "true")  # screen readers wait meanwhile
     send.click()
     expect(page.locator(".msg-assistant .msg-meta")).to_have_text("Stopped")
     expect(send).not_to_have_class("send-btn is-stop")
+    expect(page.locator("#thread")).not_to_have_attribute("aria-busy", "true")
     # The part that was written is saved, and the page continues in that chat
     expect(paper_row(page, app_module_name(OTHER)).locator(".chat-item")).to_have_count(1)
 

@@ -100,6 +100,9 @@ jobs:
       # This job uses the system Python (no venv, so no .cache/pycache helper).
       # The CI machine is deleted after the run, so it simply writes no cache files.
       PYTHONDONTWRITEBYTECODE: "1"
+      # Every test must really run here: a test skipped for a missing tool (Ollama, browser,
+      # OCR) fails the job instead of passing quietly (see tests/conftest.py)
+      REQUIRE_ALL_TESTS: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

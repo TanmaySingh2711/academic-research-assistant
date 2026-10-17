@@ -4,7 +4,7 @@
 
 Ask questions about your research paper PDFs and get answers that point to the exact page they came from, all running on your own computer.
 
-![Overview page of Academic Research Assistant](docs/screenshots/overview.png)
+![Overview page of Academic Research Assistant](docs/overview.png)
 
 ## Table of Contents
 
@@ -140,7 +140,7 @@ academic-research-assistant/
 │   └── configure_venv.py  Keep Python cache files in .cache/
 ├── evaluation/            Question set, sample papers and the evaluation script
 ├── tests/                 pytest tests
-├── docs/screenshots/      Screenshots used in this README
+├── docs/                  Screenshots used in this README
 ├── .github/               CI workflow
 ├── setup.bat / setup.sh   One-click setup
 ├── run_dashboard.bat      Start the app on Windows (double-click)
@@ -273,15 +273,15 @@ Answer:    I could not find this in the uploaded papers.
 
 **Overview**: what the app does, the three models it uses, and how a PDF becomes an answer.
 
-![Overview page](docs/screenshots/overview.png)
+![Overview page](docs/overview.png)
 
 **Assistant**: papers and their chats in the sidebar on the left. On the right, a question about a paper, the answer with its source numbers, the tokens and time it took, and the three sources with their pages and scores.
 
-![Assistant page with an answer and its sources](docs/screenshots/assistant.png)
+![Assistant page with an answer and its sources](docs/assistant.png)
 
 **How it works**: three flowcharts, one per tab: how the project was built, what happens inside, and the user flow.
 
-![How it works page](docs/screenshots/how-it-works.png)
+![How it works page](docs/how-it-works.png)
 
 ## API
 

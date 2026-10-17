@@ -48,7 +48,11 @@ export function addStreamingAnswer() {
     row.append(dots, status);
     body.append(row);
     message.append(avatar(), body);
-    $("thread").append(message);
+    const thread = $("thread");
+    thread.append(message);
+    // While the words stream in, screen readers wait and read the answer once it is complete
+    thread.setAttribute("aria-busy", "true");
+    const done = () => thread.removeAttribute("aria-busy");
     scrollToBottom(true);
 
     let box = null; // the plain text while it streams in
@@ -71,6 +75,7 @@ export function addStreamingAnswer() {
             row.remove();
             if (box) box.remove();
             fillAnswer(message, body, m);
+            done();
         },
         // Stopped by the user: keep what was written so far
         stop() {
@@ -78,9 +83,11 @@ export function addStreamingAnswer() {
             if (box) box.classList.replace("answer-typing", "answer-plain");
             if (!text) body.append(el("p", "answer-stopped", "Stopped before the answer started."));
             else body.append(el("div", "msg-meta", "Stopped"));
+            done();
         },
         remove() {
             message.remove();
+            done();
         },
     };
 }

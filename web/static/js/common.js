@@ -46,7 +46,7 @@ const App = (() => {
         return node;
     }
 
-    // Line icons, drawn as SVG shapes (same look as templates/_icons.html)
+    // Line icons, drawn as SVG shapes (same look as web/templates/_icons.html)
     const ICONS = {
         file: [["path", { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }], ["path", { d: "M14 2v6h6M16 13H8M16 17H8M10 9H8" }]],
         chat: [["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }]],
@@ -111,12 +111,6 @@ const App = (() => {
     function paperName(filename) {
         if (!filename) return "All papers";
         return filename.replace(/\.pdf$/i, "").replace(/_/g, " ");
-    }
-
-    // "2026-10-14T01:37:53" -> "Oct 14, 2026, 1:37 AM"
-    function formatTime(iso) {
-        const date = new Date(iso);
-        return isNaN(date) ? iso : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
     }
 
     // "just now", "5 min ago", "3 h ago", "Oct 14"
@@ -211,7 +205,7 @@ const App = (() => {
     });
 
     return {
-        MAX_UPLOAD_MB, reducedMotion, api, el, icon, logo, paperName, formatTime, relativeTime,
+        MAX_UPLOAD_MB, reducedMotion, api, el, icon, logo, paperName, relativeTime,
         toast, getStatus, observeReveal,
     };
 })();
