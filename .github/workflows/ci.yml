@@ -84,7 +84,7 @@ jobs:
           PY=venv/bin/python
           [ -f venv/Scripts/python.exe ] && PY=venv/Scripts/python.exe
           "$PY" -c "import app"
-          ls .cache/pycache/app.*.pyc .cache/pycache/src/loader.*.pyc
+          ls .cache/pycache/app.*.pyc .cache/pycache/src/ingest.*.pyc
           found=$(find . -name __pycache__ -not -path "./venv/*")
           if [ -n "$found" ]; then echo "__pycache__ found outside venv:"; echo "$found"; exit 1; fi
 
