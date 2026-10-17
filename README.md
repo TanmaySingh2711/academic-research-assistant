@@ -9,8 +9,6 @@ Ask questions about your research paper PDFs and get answers that point to the e
 ## Table of Contents
 
 - [Overview](#overview)
-- [The Problem](#the-problem)
-- [Goals](#goals)
 - [Key Features](#key-features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
@@ -42,26 +40,12 @@ You upload PDFs, click **Build index**, pick a paper and ask a question in plain
 
 This approach is called RAG (Retrieval-Augmented Generation): first find the right text, then let the model answer from it.
 
-Everything runs on your machine. There are no API keys, no paid services and no cloud. After the one-time setup, it works offline.
-
-## The Problem
-
-Finding one fact in a long paper means scrolling, searching for keywords that may not match, and reading whole sections. A general chatbot can answer faster, but it may make things up and it does not show where the answer came from. Uploading private or unpublished papers to an online service is also not always an option.
-
-This project answers questions **only** from the papers you give it, shows the page for every answer, and keeps all files on your computer.
-
-## Goals
-
-- Answer questions from the uploaded papers only, and say so when the answer is not there
-- Show the paper and page behind every answer
-- Run fully offline on a normal laptop CPU
-- Keep the answers fast and the setup simple
-- Measure answer quality with a fixed question set instead of guessing
+**Why it exists:** finding one fact in a long paper means scrolling and guessing keywords. A general chatbot is faster, but it can make things up, it does not show where an answer came from, and private or unpublished papers may not be allowed on an online service. This app answers **only** from your papers, shows the page for every answer, and keeps every file on your computer. There are no API keys, no paid services and no cloud; after the one-time setup it works offline.
 
 ## Key Features
 
-- **Chat with a paper**: every chat is about one paper, and a paper can have many chats.
-- **Answers with sources**: each answer cites `[Source N]`; click it to open the exact chunk of text and its page.
+- **Chat with a paper**: every chat is about one paper, and a paper can have many chats. Chats are saved on your computer and can be renamed or deleted.
+- **Answers with sources**: each answer cites `[Source N]`; click it to open the exact chunk of text and its page. Tokens and response time are shown too.
 - **Follow-up questions**: questions like "how was it evaluated?" understand the chat so far.
 - **Live answers**: the answer appears word by word, and a Stop button ends it early (the part already written is kept).
 - **"Not found" instead of guessing**: if the paper does not contain the answer, the app says "I could not find this in the uploaded papers."
@@ -69,10 +53,7 @@ This project answers questions **only** from the papers you give it, shows the p
 - **Fast indexing**: Build index only reads papers that are new or changed. Deleting a paper is instant and does not re-index the others.
 - **Clean text from real papers**: running headers, page numbers, rotated arXiv stamps and the reference list are removed, and tables are kept row by row.
 - **Scanned PDFs**: pages that are only images are read with OCR, offline.
-- **Chat history**: chats are saved on your computer and listed under each paper. You can rename and delete them.
-- **Choose how much context the model reads**: 1, 3 or 5 chunks per answer.
-- **Answer details**: tokens read, tokens written and response time are shown under each answer.
-- **Works offline**: plain HTML, CSS and JavaScript, with no CDN or web fonts.
+- **Choose how much the model reads**: 1, 3 or 5 chunks per answer.
 - **Built-in quality check**: an evaluation set of 88 questions measures how often the right text is found and the answer is right.
 
 ## Tech Stack
@@ -228,11 +209,11 @@ The main settings live in the code, if you want to change them:
 | Upload limit | `MAX_CONTENT_LENGTH` in `app.py` | 25 MB per upload |
 | Port | `PORT` in `scripts/serve.py` | 5000 |
 
-If you change how chunks are made, raise `PIPELINE_VERSION` in `src/ingest.py`. The app then marks every paper as "needs indexing" again.
+Notes:
 
-The port 5000 and the model name `llama3.2:3b` also appear in `scripts/run_dashboard.ps1` and the setup scripts, so change them there too. A different model must be downloaded first with `ollama pull <model>`.
-
-The Windows launcher reads `HF_HOME` (if set) to find the downloaded search models, and turns on Hugging Face offline mode when both models are already there.
+- After changing how chunks are made, raise `PIPELINE_VERSION` in `src/ingest.py` so every paper is indexed again.
+- The port and the model name also appear in `scripts/run_dashboard.ps1` and the setup scripts. Download a new model first with `ollama pull <model>`.
+- The Windows launcher reads `HF_HOME`, if set, to find the search models.
 
 ## How to Run
 
@@ -438,15 +419,9 @@ GitHub Actions runs lint, type checks, the one-click setup and all tests on Wind
 
 ## Contributing
 
-Ideas and bug reports are welcome. Please open an issue first so we can talk about the change.
+Bug reports and ideas are welcome: please [open an issue](https://github.com/TanmaySingh2711/academic-research-assistant/issues).
 
-Because of the license (see below), changes to the code can only be accepted with the author's permission. If you have it, the usual steps are:
-
-1. Fork the repository.
-2. Create a branch: `git checkout -b my-change`
-3. Make your change and run the tests and checks above.
-4. Commit: `git commit -m "Describe the change"`
-5. Push the branch and open a pull request.
+The code is under an all-rights-reserved license, so code changes need the author's permission first. Once agreed in the issue: fork the repository, make the change on a new branch, run the tests and checks above, and open a pull request.
 
 ## License
 

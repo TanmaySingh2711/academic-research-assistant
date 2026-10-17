@@ -18,17 +18,11 @@ function Exit-AfterKey($code) {
 }
 
 function Test-Port($number) {
-    # True if something is listening on 127.0.0.1:$number. Waits at most 0.3 s: on Windows a
-    # closed port can otherwise take about 2 seconds to answer (Windows retries the connection).
-    $client = New-Object System.Net.Sockets.TcpClient
-    try {
-        $attempt = $client.BeginConnect("127.0.0.1", $number, $null, $null)
-        return $attempt.AsyncWaitHandle.WaitOne(300) -and $client.Connected
-    } catch {
-        return $false
-    } finally {
-        $client.Close()
-    }
+    # True if a program on this computer listens on the port. Asking Windows for its list of
+    # listening ports takes a few milliseconds; trying to connect instead can take seconds on a
+    # closed port (Windows retries), which used to slow down every start.
+    $listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
+    return [bool]($listeners | Where-Object { $_.Port -eq $number })
 }
 
 # Returns the process of THIS project's server if it is the one using the port, else $null.
@@ -203,7 +197,8 @@ while (-not $server.HasExited) {
             break
         }
     }
-    Start-Sleep -Milliseconds 100
+    # Check often until the dashboard is open, then only for Esc and Ollama
+    Start-Sleep -Milliseconds $(if ($browserOpened) { 100 } else { 25 })
 }
 
 # ---------- 6. Stop everything ----------

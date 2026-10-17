@@ -15,7 +15,6 @@ import numpy as np
 
 from src.chunker import add_abbreviations, chunk_pages
 from src.embedder import MODEL_NAME, embed_chunks
-from src.loader import load_pdfs
 from src.schema import Chunk
 from src.vector_store import all_vectors, build_index, load_store, normalize_vectors, remove_paper, renumber, save_store
 
@@ -97,6 +96,9 @@ def run_ingestion(papers_dir: str | Path, index_dir: str | Path, full: bool = Fa
         del papers[name]
 
     to_index = sorted(name for name in pdfs if name not in papers)
+    # Imported here: the PDF reader is only needed while building, so the app starts faster
+    from src.loader import load_pdfs
+
     pages = load_pdfs(papers_dir, names=to_index) if to_index else []
     new_chunks: list[Chunk] = chunk_pages(pages, chunk_size=chunk_size, overlap=overlap)
     add_abbreviations(new_chunks, pages)
