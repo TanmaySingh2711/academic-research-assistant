@@ -144,6 +144,7 @@ academic-research-assistant/
 ├── .github/               CI workflow
 ├── setup.bat / setup.sh   One-click setup
 ├── run_dashboard.bat      Start the app on Windows (double-click)
+├── run_dashboard.sh       Start the app on macOS / Linux
 ├── requirements.txt       Python libraries
 └── requirements-dev.txt   Extra tools for tests and checks
 ```
@@ -212,16 +213,22 @@ The main settings live in the code, if you want to change them:
 Notes:
 
 - After changing how chunks are made, raise `PIPELINE_VERSION` in `src/ingest.py` so every paper is indexed again.
-- The port and the model name also appear in `scripts/run_dashboard.ps1` and the setup scripts. Download a new model first with `ollama pull <model>`.
+- The port and the model name also appear in the launchers (`scripts/run_dashboard.ps1`, `run_dashboard.sh`) and the setup scripts. Download a new model first with `ollama pull <model>`.
 - The Windows launcher reads `HF_HOME`, if set, to find the search models.
 
 ## How to Run
 
 **Windows:** double-click `run_dashboard.bat`.
 
-It starts Ollama if needed, starts the server and opens http://localhost:5000 in your browser. Press **Esc** in the window to stop everything.
+**macOS / Linux:**
 
-**Any system, from a terminal** (with the virtual environment active and Ollama running):
+```bash
+bash run_dashboard.sh
+```
+
+Both start Ollama if needed, start the server and open http://localhost:5000 in your browser. Press **Esc** once to stop everything (`Ctrl+C` does nothing, so it cannot stop the dashboard by accident).
+
+**Only the server, from a terminal** (with the virtual environment active and Ollama running):
 
 ```bash
 python scripts/serve.py
@@ -415,7 +422,6 @@ GitHub Actions runs lint, type checks, the one-click setup and all tests on Wind
 - **One paper per chat.** A question searches only the paper the chat is about.
 - **Local, single-user app.** It uses Flask's development server on `localhost` with no login. It is not meant to be put on the internet.
 - **Uploads are limited to 25 MB per request**, and file names are cleaned (spaces and special characters become underscores).
-- **The one-click launcher is Windows only.** On macOS and Linux, start the server from a terminal.
 
 ## Contributing
 

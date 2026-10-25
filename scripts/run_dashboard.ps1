@@ -4,6 +4,9 @@
 
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+# Ctrl+C does nothing in this window: only Esc stops the dashboard. Set first, so a Ctrl+C can
+# never stop the server (it shares this window) or ask "Terminate batch job?" before Esc is ready.
+[Console]::TreatControlCAsInput = $true
 $Host.UI.RawUI.WindowTitle = "Academic Research Assistant"
 
 $port = 5000
@@ -167,7 +170,6 @@ function Disable-QuickEdit {
 Disable-QuickEdit
 
 # ---------- 5. Wait: open the browser when ready, warm up the LLM, stop on Esc ----------
-[Console]::TreatControlCAsInput = $true  # Ctrl+C is handled like Esc, so nothing is left running
 Add-Type -AssemblyName System.Net.Http
 $http = New-Object System.Net.Http.HttpClient
 $http.Timeout = [TimeSpan]::FromMinutes(5)
@@ -191,8 +193,7 @@ while (-not $server.HasExited) {
 
     if ([Console]::KeyAvailable) {
         $key = [Console]::ReadKey($true)
-        $ctrlC = $key.Key -eq "C" -and ($key.Modifiers -band [ConsoleModifiers]::Control)
-        if ($key.Key -eq "Escape" -or $ctrlC) {
+        if ($key.Key -eq "Escape") {  # one press of Esc; every other key (Ctrl+C too) is ignored
             $stopRequested = $true
             break
         }

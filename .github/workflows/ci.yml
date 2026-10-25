@@ -88,6 +88,70 @@ jobs:
           found=$(find . -name __pycache__ -not -path "./venv/*")
           if [ -n "$found" ]; then echo "__pycache__ found outside venv:"; echo "$found"; exit 1; fi
 
+      # Like a person at the keyboard (in a real terminal): Ctrl+C and arrow keys must be ignored,
+      # and one press of Esc must stop the dashboard and its server
+      - name: run_dashboard.sh stops with one Esc only (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          venv/bin/python - <<'EOF'
+          import os, pty, sys, threading, time, urllib.request
+
+          def up():
+              try:
+                  urllib.request.urlopen("http://127.0.0.1:5000/status", timeout=2)
+                  return True
+              except Exception:
+                  return False
+
+          pid, fd = pty.fork()
+          if pid == 0:
+              os.execvpe("bash", ["bash", "run_dashboard.sh"], {**os.environ, "NO_BROWSER": "1"})
+          output = []
+          def drain():
+              while True:
+                  try:
+                      data = os.read(fd, 4096)
+                  except OSError:
+                      break
+                  if not data:
+                      break
+                  output.append(data.decode(errors="replace"))
+          threading.Thread(target=drain, daemon=True).start()
+
+          def fail(message):
+              print("".join(output))
+              sys.exit(message)
+
+          for _ in range(240):
+              if up():
+                  break
+              time.sleep(0.5)
+          else:
+              fail("The dashboard did not start")
+          time.sleep(1)
+          os.write(fd, b"\x03")  # Ctrl+C
+          time.sleep(2)
+          if not up():
+              fail("Ctrl+C stopped the dashboard")
+          os.write(fd, b"\x1b[A")  # arrow up: starts with the Esc byte
+          time.sleep(2)
+          if not up():
+              fail("An arrow key stopped the dashboard")
+          os.write(fd, b"\x1b")  # one press of Esc
+          for _ in range(80):
+              done, status = os.waitpid(pid, os.WNOHANG)
+              if done:
+                  break
+              time.sleep(0.25)
+          else:
+              fail("One Esc did not stop the dashboard")
+          time.sleep(1)
+          if up() or os.WEXITSTATUS(status) != 0:
+              fail("Esc did not stop the server cleanly")
+          print("".join(output))
+          print("Ctrl+C and arrow keys were ignored; one Esc stopped everything.")
+          EOF
   tests:
     name: Tests (${{ matrix.os }})
     strategy:

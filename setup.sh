@@ -64,6 +64,4 @@ fi
 
 echo
 echo "Setup complete. Start the app with:"
-echo "  source venv/bin/activate"
-echo "  python scripts/serve.py"
-echo "Then open http://localhost:5000"
+echo "  bash run_dashboard.sh"
